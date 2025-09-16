@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  phone     String
+  cpf       String   @unique
+  addressId Int      @unique @map("address_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  @@map("users")
+}
+
+model Address {
+  id           Int      @id @default(autoincrement())
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  zipCode      String   @map("zip_code")
+  houseNumber  String?  @map("house_number")
+  addressUuid  String   @unique @default(dbgenerated("gen_random_uuid()")) @map("address_uuid")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User?
+
+  visits DoorbellVisit[]
+
+  @@unique([street, number, complement, city, state], name: "unique_address")
+  @@map("addresses")
+}
+
+model DoorbellVisit {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique @default(dbgenerated("gen_random_uuid()")) @map("uuid")
+  addressId Int      @map("address_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  @@map("doorbell_visits")
+}

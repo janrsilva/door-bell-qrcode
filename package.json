@@ -1,0 +1,18 @@
+{
+  "name": "qrcode-door-bell",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.4"
+  },
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*"
+  ]
+}
