@@ -209,6 +209,17 @@ export default function RegistrationForm() {
             </Button>
           </div>
         )}
+
+        {/* Link para Login */}
+        <div className="text-center text-sm text-muted-foreground pt-4 border-t">
+          Já tem uma conta?{" "}
+          <a
+            href="/auth/login"
+            className="text-blue-600 hover:text-blue-500 underline-offset-4 hover:underline font-medium transition-colors"
+          >
+            Faça login aqui
+          </a>
+        </div>
       </div>
     </Form>
   );

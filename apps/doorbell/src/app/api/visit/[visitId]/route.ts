@@ -20,7 +20,7 @@ export async function GET(
 
     console.log("API Visit: Getting visit data for ID:", visitIdNumber);
 
-    const visit = await DoorbellService.findVisitById(visitIdNumber);
+    const visit = await DoorbellService.findVisitByUuid(visitId);
 
     if (!visit) {
       return NextResponse.json(

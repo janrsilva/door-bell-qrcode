@@ -1,0 +1,43 @@
+{
+  "name": "Campainha Eletrônica - Central de Chamadas",
+  "short_name": "Campainha",
+  "description": "Receba chamadas de campainha no seu telefone mesmo com o app fechado",
+  "start_url": "/atendimento",
+  "display": "standalone",
+  "id": "/atendimento",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "categories": ["utilities", "productivity"],
+  "scope": "/",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Central de Chamadas",
+      "short_name": "Chamadas",
+      "description": "Abrir central de chamadas da campainha",
+      "url": "/atendimento",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

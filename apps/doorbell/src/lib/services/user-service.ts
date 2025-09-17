@@ -198,6 +198,9 @@ export class UserService {
       const user = await prisma.user.update({
         where: { id },
         data: userData,
+        include: {
+          address: true,
+        },
       });
 
       return {

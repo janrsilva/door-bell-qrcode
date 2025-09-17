@@ -2,9 +2,8 @@ import { RegistrationFormData } from "@/lib/schemas";
 
 export interface DoorbellVisit {
   id: number;
-  addressUuid: string;
-  used: boolean;
-  usedAt: Date | null;
+  uuid: string;
+  addressId: number;
   createdAt: Date;
 }
 
@@ -116,7 +115,6 @@ export class DoorbellService {
       const visit = await prisma.doorbellVisit.create({
         data: {
           addressId: address.id,
-          used: false,
           // Temporarily remove expiresAt until database is updated
         },
       });
@@ -171,40 +169,15 @@ export class DoorbellService {
       //   };
       // }
 
-      // If visit is already used, check if it's still within expiry time
-      if (visit.used) {
-        // Temporarily disable expiry check until database is updated
-        // if (new Date() > visit.expiresAt) {
-        //   return {
-        //     success: false,
-        //     error:
-        //       "Esta visita expirou. Por favor, escaneie o QR Code novamente.",
-        //   };
-        // }
-
-        // Visit is used but still valid - get user data for display
-        const user = await prisma.user.findUnique({
-          where: { addressId: visit.addressId },
-          include: {
-            address: true,
-          },
-        });
-
-        return {
-          success: true,
-          user,
-          visit,
-        };
-      }
+      // Visit exists and is valid
+      // Note: We've simplified the logic by removing the 'used' field
+      // Each visit can be used multiple times now
+      // Visit exists and is valid - get user data for display
 
       // Mark as used and get user data
       const [updatedVisit, user] = await prisma.$transaction([
-        prisma.doorbellVisit.update({
+        prisma.doorbellVisit.findUnique({
           where: { id: visitId },
-          data: {
-            used: true,
-            // Temporarily remove usedAt until database is updated
-          },
           include: {
             address: true,
           },

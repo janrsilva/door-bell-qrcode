@@ -1,11 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SimpleDoorbellService } from "@/lib/services/simple-doorbell-service";
+import { getActiveSubscriptions } from "@/lib/services/subscription-service";
+import { PrismaClient } from "@prisma/client";
+import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import webpush from "web-push";
 
 export const runtime = "nodejs";
 
+// Configurar VAPID keys
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+if (!vapidPublicKey || !vapidPrivateKey) {
+  throw new Error(
+    "VAPID keys não configuradas! Configure NEXT_PUBLIC_VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY no .env.local"
+  );
+}
+
+console.log("🔑 VAPID Keys configuradas:");
+console.log("  - Public:", vapidPublicKey.substring(0, 20) + "...");
+console.log("  - Private:", vapidPrivateKey.substring(0, 20) + "...");
+
+webpush.setVapidDetails(
+  "mailto:seu-email@exemplo.com",
+  vapidPublicKey,
+  vapidPrivateKey
+);
+
+// Subscriptions são gerenciadas pelo subscription-service
+
 export async function POST(req: NextRequest) {
+  // Definir variáveis no escopo principal
+  let targetAddressId: number | null = null;
+  let subscriptions: any[] = [];
+
   try {
     const { visitUuid, coords } = await req.json();
+
+    console.log("🔔 === API RING INICIADA ===");
+    console.log("📋 Dados recebidos:", { visitUuid, coords });
 
     if (!visitUuid) {
       return NextResponse.json(
@@ -14,23 +46,190 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("API Ring: Doorbell rung for visit:", visitUuid);
+    console.log("✅ visitUuid válido:", visitUuid);
 
-    // Ring the bell using SimpleDoorbellService
-    const result = await SimpleDoorbellService.ringBell(visitUuid);
+    // Para teste, permitir visitUuid que começam com "test-"
+    const isTestRing = visitUuid.startsWith("test-");
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || "Erro ao tocar a campainha" },
-        { status: 400 }
-      );
+    if (!isTestRing) {
+      // Validar visita real usando Prisma diretamente na API
+      const prisma = new PrismaClient();
+
+      try {
+        const visit = await prisma.doorbellVisit.findUnique({
+          where: { uuid: visitUuid },
+        });
+
+        if (!visit) {
+          return NextResponse.json(
+            { error: "Visita não encontrada" },
+            { status: 404 }
+          );
+        }
+
+        // Verificar se a visita expirou
+        const now = new Date();
+        const expiredAt = new Date(
+          visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS
+        );
+
+        if (now > expiredAt) {
+          return NextResponse.json(
+            {
+              error:
+                "Esta visita expirou. Por favor, escaneie o QR Code novamente.",
+            },
+            { status: 400 }
+          );
+        }
+
+        console.log("✅ Visita validada:", visitUuid);
+      } finally {
+        await prisma.$disconnect();
+      }
+    } else {
+      console.log("🧪 Toque de teste detectado:", visitUuid);
     }
 
-    // TODO: rate limit, captcha, ephemeral token, geo validation, etc.
-    // Simulate notification to resident (queue/push). Here we just log.
-    // In production, publish to a queue (SQS, Redis, etc) for resident app.
+    console.log("✅ === VALIDAÇÃO CONCLUÍDA ===");
+    console.log("🔔 Campainha tocada para visit:", visitUuid);
 
-    // Ex.: await publishRing({ coords, ua: req.headers.get("user-agent") })
+    // ENVIAR PUSH NOTIFICATIONS PARA O PWA DO MORADOR
+    console.log("📡 === INICIANDO SISTEMA DE PUSH NOTIFICATIONS ===");
+    try {
+      // Buscar o endereço da visita para filtrar subscriptions
+
+      if (!isTestRing) {
+        // Para visitas reais, buscar o addressId da visita
+        const { PrismaClient } = await import("@prisma/client");
+        const prisma = new PrismaClient();
+
+        try {
+          const visit = await prisma.doorbellVisit.findUnique({
+            where: { uuid: visitUuid },
+            include: { address: true },
+          });
+
+          if (visit) {
+            targetAddressId = visit.addressId;
+            console.log(`📍 Visita encontrada - AddressId: ${targetAddressId}`);
+            console.log(
+              `🏠 Endereço: ${visit.address.street}, ${visit.address.number}`
+            );
+          } else {
+            console.log(
+              "❌ Visita não encontrada no banco para UUID:",
+              visitUuid
+            );
+          }
+        } finally {
+          await prisma.$disconnect();
+        }
+      } else {
+        // Para testes, usar addressId 1 por padrão
+        targetAddressId = 1;
+        console.log("🧪 Teste - usando addressId padrão: 1");
+      }
+
+      // Buscar subscriptions ativas para o endereço específico
+      subscriptions = getActiveSubscriptions(targetAddressId || undefined);
+
+      console.log(
+        `📡 Enviando push para ${subscriptions.length} dispositivos (addressId: ${targetAddressId})...`
+      );
+
+      if (subscriptions.length === 0) {
+        console.log("⚠️ NENHUMA SUBSCRIPTION ENCONTRADA!");
+        console.log("🔍 Debug subscriptions store:");
+
+        // Debug: listar todas as subscriptions
+        const allSubscriptions = getActiveSubscriptions();
+        console.log(
+          `📊 Total de subscriptions no sistema: ${allSubscriptions.length}`
+        );
+
+        if (allSubscriptions.length > 0) {
+          console.log("📋 Subscriptions disponíveis:");
+          // Usar o store diretamente para debug
+          const subscriptionsStore = (global as any).subscriptionsStore;
+          if (subscriptionsStore) {
+            for (const [id, data] of subscriptionsStore.entries()) {
+              console.log(
+                `  - ID: ${id}, AddressId: ${data.addressId}, Active: ${data.isActive}`
+              );
+            }
+          }
+        }
+      }
+
+      if (subscriptions.length > 0) {
+        console.log(
+          `📡 === PREPARANDO ENVIO PARA ${subscriptions.length} DISPOSITIVOS ===`
+        );
+        console.log("🎯 Target AddressId:", targetAddressId);
+
+        const payload = JSON.stringify({
+          title: "🔔 Campainha Tocando!",
+          body: "Alguém está na sua porta",
+          visitId: visitUuid,
+          timestamp: Date.now(),
+          coords: coords,
+          icon: "/icons/icon-192x192.png",
+          badge: "/icons/icon-192x192.png",
+          sound: "/sounds/doorbell.mp3", // Som personalizado da campainha
+          vibrate: [1000, 500, 1000, 500, 1000],
+          requireInteraction: true,
+          actions: [
+            { action: "answer", title: "📞 Atender" },
+            { action: "ignore", title: "🔇 Ignorar" },
+          ],
+        });
+
+        // Enviar para todos os dispositivos
+        const pushPromises = subscriptions.map(async (subscription: any) => {
+          try {
+            await webpush.sendNotification(subscription, payload);
+            console.log(
+              "✅ Push enviado para:",
+              subscription.endpoint.substring(0, 30) + "..."
+            );
+            return { success: true, endpoint: subscription.endpoint };
+          } catch (error: any) {
+            console.error("❌ Erro ao enviar push para dispositivo:", error);
+            return {
+              success: false,
+              error: error.message,
+              endpoint: subscription.endpoint,
+            };
+          }
+        });
+
+        const results = await Promise.allSettled(pushPromises);
+        const successful = results.filter(
+          (r) => r.status === "fulfilled" && r.value.success
+        ).length;
+
+        console.log(`📊 === RESULTADO PUSH NOTIFICATIONS ===`);
+        console.log(
+          `✅ Enviadas com sucesso: ${successful}/${subscriptions.length}`
+        );
+
+        if (successful === 0) {
+          console.log("❌ NENHUMA NOTIFICAÇÃO FOI ENVIADA COM SUCESSO!");
+          console.log("🔍 Verifique se as VAPID keys estão corretas");
+          console.log("🔍 Verifique se o Service Worker está funcionando");
+        }
+      } else {
+        console.log("⚠️ === NENHUMA SUBSCRIPTION ATIVA ENCONTRADA ===");
+        console.log("🔍 Motivos possíveis:");
+        console.log("  - Usuário não configurou notificações");
+        console.log("  - AddressId não bate com as subscriptions");
+        console.log("  - Subscriptions expiraram ou foram removidas");
+      }
+    } catch (pushError) {
+      console.error("❌ Erro no sistema de push notifications:", pushError);
+      // Não falhar a requisição por causa disso
+    }
 
     console.log("Doorbell ring:", {
       visitUuid,
@@ -38,10 +237,17 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
+    console.log("🎉 === API RING FINALIZADA COM SUCESSO ===");
+
     return NextResponse.json({
       success: true,
       message: "Campainha tocada com sucesso",
       timestamp: new Date().toISOString(),
+      debug: {
+        visitUuid,
+        targetAddressId,
+        subscriptionsFound: subscriptions?.length || 0,
+      },
     });
   } catch (e: any) {
     console.error("API Ring: Error:", e);

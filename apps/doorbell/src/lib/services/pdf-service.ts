@@ -6,6 +6,7 @@ import { QRCodeService } from "./qr-service";
 
 export interface PDFOptions {
   userId: number;
+  addressUuid?: string;
   houseNumber?: string;
   userName?: string;
 }
@@ -26,14 +27,14 @@ export class PDFService {
 
       // Generate QR code for PDF (higher resolution)
       const qrResult = await QRCodeService.generateQRForPDF(
-        options.userId,
+        options.addressUuid || String(options.userId), // fallback to userId as string
         options.houseNumber
       );
 
-      if (!qrResult.success || !qrResult.qrCodeDataUrl) {
+      if (!qrResult.qrCodeDataURL) {
         return {
           success: false,
-          error: qrResult.error || "Erro ao gerar QR code",
+          error: "Erro ao gerar QR code",
         };
       }
 
@@ -47,7 +48,7 @@ export class PDFService {
 
       // Prepare template data
       const templateData = {
-        qrCodeDataUrl: qrResult.qrCodeDataUrl,
+        qrCodeDataUrl: qrResult.qrCodeDataURL,
         houseNumber: options.houseNumber,
         userName: options.userName,
         userId: options.userId,
@@ -88,7 +89,7 @@ export class PDFService {
 
       return {
         success: true,
-        pdfBuffer,
+        pdfBuffer: Buffer.from(pdfBuffer),
       };
     } catch (error: any) {
       console.error("PDFService: Error generating PDF:", error);

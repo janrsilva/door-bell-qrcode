@@ -16,6 +16,7 @@ model User {
   email     String   @unique
   phone     String
   cpf       String   @unique
+  password  String // Campo de senha para autenticação
   addressId Int      @unique @map("address_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

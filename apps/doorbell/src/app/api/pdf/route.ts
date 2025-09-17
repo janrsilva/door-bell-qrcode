@@ -31,9 +31,9 @@ export async function GET(req: NextRequest) {
       houseNumber || undefined
     );
 
-    if (!qrResult.success || !qrResult.qrCodeDataUrl) {
+    if (!qrResult.qrCodeDataURL) {
       return NextResponse.json(
-        { error: qrResult.error || "Erro ao gerar QR code" },
+        { error: "Erro ao gerar QR code" },
         { status: 500 }
       );
     }
@@ -117,10 +117,10 @@ export async function GET(req: NextRequest) {
         <h1>CAMPAINHA</h1>
         <h3>ELETRÔNICA</h3>
     </div>
-    
+
     <div class="qr-container">
         <img src="${
-          qrResult.qrCodeDataUrl
+          qrResult.qrCodeDataURL
         }" alt="QR Code da Campainha" class="qr-code" />
         ${
           houseNumber
@@ -128,15 +128,15 @@ export async function GET(req: NextRequest) {
             : ""
         }
     </div>
-    
+
     <div class="instructions">
         <p>
-            Essa é uma campainha eletrônica que toca no telefone do morador, 
-            leia o código para entrar em contato. Ao fazer isso, você concorda 
+            Essa é uma campainha eletrônica que toca no telefone do morador,
+            leia o código para entrar em contato. Ao fazer isso, você concorda
             com os termos de uso da plataforma.
         </p>
     </div>
-    
+
     <div class="footer">
         <p><strong>Sistema de Campainha Eletrônica</strong><br>
         Escaneie o QR Code acima para tocar a campainha</p>
@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
     console.log("API PDF: PDF generated successfully");
 
     // Return PDF buffer
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="campainha-${
