@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     console.log("🎯 Target AddressId:", addressId || "ALL");
 
     // Buscar subscriptions para o endereço específico
-    const subscriptions = getActiveSubscriptions(addressId);
+    const subscriptions = await getActiveSubscriptions(addressId);
 
     console.log(`📡 Subscriptions encontradas: ${subscriptions.length}`);
 

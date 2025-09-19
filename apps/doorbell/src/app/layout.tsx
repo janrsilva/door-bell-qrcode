@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import SoundManager from "@/components/SoundManager";
 
 export const metadata: Metadata = {
   title: "Campainha Eletrônica",
@@ -45,8 +46,11 @@ export default function RootLayout({
           content="/icons/icon-144x144.png"
         />
       </head>
-      <body className="bg-background text-foreground">
-        <SessionProvider>{children}</SessionProvider>
+      <body className="bg-background text-foreground" suppressHydrationWarning>
+        <SessionProvider>
+          <SoundManager />
+          {children}
+        </SessionProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

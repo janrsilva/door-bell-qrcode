@@ -9,6 +9,7 @@ import { Form } from "@/components/ui/form";
 import { registrationSchema, type RegistrationFormData } from "@/lib/schemas";
 import PersonalDataStep from "./steps/personal-data-step";
 import AddressStep from "./steps/address-step";
+import LocationStep from "./steps/location-step";
 import QRDownloadStep from "./steps/qr-download-step";
 
 export default function RegistrationForm() {
@@ -21,7 +22,7 @@ export default function RegistrationForm() {
   const [userId, setUserId] = useState<number | undefined>();
   const [addressUuid, setAddressUuid] = useState<string | undefined>();
 
-  const steps = ["Dados Pessoais", "Endereço", "QR Code"];
+  const steps = ["Dados Pessoais", "Endereço", "Localização", "QR Code"];
 
   const form = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -30,6 +31,7 @@ export default function RegistrationForm() {
       email: "",
       phone: "",
       cpf: "",
+      password: "",
       zipCode: "",
       street: "",
       number: "",
@@ -37,6 +39,8 @@ export default function RegistrationForm() {
       neighborhood: "",
       city: "",
       state: "",
+      latitude: -19.9786533, // Default to Belo Horizonte
+      longitude: -44.0037764,
     },
   });
 
@@ -48,12 +52,13 @@ export default function RegistrationForm() {
         "email",
         "phone",
         "cpf",
+        "password",
       ]);
       if (personalDataValid) {
         setCurrentStep(2);
       }
     } else if (currentStep === 2) {
-      // Validate address and submit
+      // Validate address
       const addressValid = await form.trigger([
         "zipCode",
         "street",
@@ -63,6 +68,12 @@ export default function RegistrationForm() {
         "state",
       ]);
       if (addressValid) {
+        setCurrentStep(3);
+      }
+    } else if (currentStep === 3) {
+      // Validate location and submit
+      const locationValid = await form.trigger(["latitude", "longitude"]);
+      if (locationValid) {
         await handleSubmit();
       }
     }
@@ -96,7 +107,7 @@ export default function RegistrationForm() {
 
       setUserId(result.userId);
       setAddressUuid(result.addressUuid);
-      setCurrentStep(3);
+      setCurrentStep(4);
       setSubmitMessage({
         type: "success",
         text: "Usuário cadastrado com sucesso!",
@@ -148,6 +159,8 @@ export default function RegistrationForm() {
       case 2:
         return <AddressStep form={form} />;
       case 3:
+        return <LocationStep form={form} />;
+      case 4:
         return (
           <QRDownloadStep
             userId={userId}
@@ -189,7 +202,7 @@ export default function RegistrationForm() {
         )}
 
         {/* Navigation Buttons */}
-        {currentStep < 3 && (
+        {currentStep < 4 && (
           <div className="flex justify-between pt-6">
             <Button
               type="button"
@@ -203,7 +216,7 @@ export default function RegistrationForm() {
             <Button type="button" onClick={nextStep} disabled={isLoading}>
               {isLoading
                 ? "Processando..."
-                : currentStep === 2
+                : currentStep === 3
                   ? "Finalizar Cadastro"
                   : "Continuar"}
             </Button>

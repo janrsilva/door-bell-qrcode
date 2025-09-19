@@ -1,4 +1,5 @@
 import { RegistrationFormData } from "@/lib/schemas";
+import bcrypt from "bcryptjs";
 
 export interface CreateUserData extends RegistrationFormData {}
 
@@ -74,12 +75,17 @@ export class UserService {
             state: userData.state,
             zipCode: userData.zipCode,
             houseNumber: userData.number,
+            latitude: userData.latitude,
+            longitude: userData.longitude,
           },
         });
         console.log("UserService: New address created:", address);
       } else {
         console.log("UserService: Existing address found:", address);
       }
+
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(userData.password, 12);
 
       // Create user with the address
       const user = await prisma.user.create({
@@ -88,6 +94,7 @@ export class UserService {
           email: userData.email,
           phone: userData.phone,
           cpf: userData.cpf,
+          password: hashedPassword,
           addressId: address.id,
         },
         include: {
@@ -195,9 +202,57 @@ export class UserService {
   ): Promise<CreateUserResult> {
     try {
       const prisma = await this.getPrisma();
+
+      // Buscar o usuário atual para obter o addressId
+      const currentUser = await prisma.user.findUnique({
+        where: { id },
+        include: { address: true },
+      });
+
+      if (!currentUser) {
+        return {
+          success: false,
+          error: "Usuário não encontrado",
+        };
+      }
+
+      // Separar dados do usuário dos dados do endereço
+      const {
+        zipCode,
+        street,
+        number,
+        complement,
+        neighborhood,
+        city,
+        state,
+        latitude,
+        longitude,
+        ...userOnlyData
+      } = userData;
+
+      // Atualizar endereço se houver dados de endereço
+      if (street || zipCode || city || state || latitude || longitude) {
+        await prisma.address.update({
+          where: { id: currentUser.addressId },
+          data: {
+            ...(street && { street }),
+            ...(number && { number }),
+            ...(complement !== undefined && { complement }),
+            ...(neighborhood && { neighborhood }),
+            ...(city && { city }),
+            ...(state && { state }),
+            ...(zipCode && { zipCode }),
+            ...(latitude !== undefined && { latitude }),
+            ...(longitude !== undefined && { longitude }),
+            ...(number && { houseNumber: number }),
+          },
+        });
+      }
+
+      // Atualizar dados do usuário
       const user = await prisma.user.update({
         where: { id },
-        data: userData,
+        data: userOnlyData,
         include: {
           address: true,
         },

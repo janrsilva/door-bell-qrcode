@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-v3"; // Som da campainha corrigido
+const CACHE_NAME = "doorbell-call-v4"; // Som da campainha corrigido com abordagem correta
 const urlsToCache = [
   "/atendimento",
   "/sounds/rington.mp3",
@@ -22,7 +22,7 @@ self.addEventListener("install", (event) => {
 // Ativação do Service Worker
 self.addEventListener("activate", (event) => {
   console.log("✅ Service Worker ativado");
-  event.waitUntil(clients.claim()); // Assume controle imediatamente
+  event.waitUntil(self.clients.claim()); // Assume controle imediatamente
 });
 
 // Interceptar requisições para cache
@@ -35,128 +35,47 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// FUNÇÃO PARA TOCAR SOM DA CAMPAINHA EM BACKGROUND
-async function playDoorbellSound(customSound) {
-  try {
-    console.log("🔔 === TOCANDO SOM DA CAMPAINHA ===");
-
-    // Usar som personalizado da campainha se fornecido, senão usar padrão
-    const doorbellSound = customSound || "/sounds/doorbell.mp3";
-    const fallbackSounds = [doorbellSound, "/sounds/rington.mp3"];
-
-    console.log("🎵 Sons da campainha disponíveis:", fallbackSounds);
-
-    // Tentar reproduzir som da campainha
-    for (const soundUrl of fallbackSounds) {
-      try {
-        console.log(`🔔 Tentando reproduzir campainha: ${soundUrl}`);
-
-        // Abordagem mais robusta para service worker
-        const response = await fetch(soundUrl);
-        if (!response.ok) {
-          throw new Error(`Erro ao carregar som: ${response.status}`);
-        }
-
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-
-        console.log(`✅ Som da campainha carregado: ${soundUrl}`);
-
-        // Tocar som da campainha com padrão específico
-        const playDoorbellTone = async (toneNumber) => {
-          try {
-            const audio = new Audio(audioUrl);
-            audio.volume = 1.0;
-            await audio.play();
-            console.log(`🔔 Toque da campainha ${toneNumber}/3`);
-            return true;
-          } catch (e) {
-            console.error(`❌ Erro no toque ${toneNumber}:`, e);
-            return false;
-          }
-        };
-
-        // Padrão de campainha: 3 toques rápidos
-        await playDoorbellTone(1);
-
-        setTimeout(() => playDoorbellTone(2), 800); // 0.8s depois
-        setTimeout(() => playDoorbellTone(3), 1600); // 1.6s depois
-
-        console.log("🎵 === SOM DA CAMPAINHA REPRODUZIDO ===");
-
-        // Limpar URL temporária
-        setTimeout(() => URL.revokeObjectURL(audioUrl), 5000);
-
-        return true; // Sucesso
-      } catch (error) {
-        console.error(`❌ Erro ao reproduzir campainha ${soundUrl}:`, error);
-      }
-    }
-
-    console.log("❌ Nenhum som da campainha funcionou");
-    return false;
-  } catch (error) {
-    console.error("❌ Erro geral no som da campainha:", error);
-    return false;
-  }
-}
-
-// LISTENER PRINCIPAL - FUNCIONA COM APP FECHADO
+// LISTENER PRINCIPAL - Recebe push e exibe notificação
 self.addEventListener("push", (event) => {
   console.log("📞 === PUSH RECEBIDO NO SERVICE WORKER ===");
-  console.log("📋 Event:", event);
-  console.log("📦 Event.data:", event.data);
 
-  let notificationData = {
-    title: "🔔 Campainha Tocando!",
-    body: "Alguém está na sua porta",
-    visitId: null,
-    timestamp: Date.now(),
-    sound: "/sounds/doorbell.mp3", // Som padrão da campainha
-  };
-
+  let data = {};
   try {
-    if (event.data) {
-      console.log("📄 Raw data:", event.data.text());
-      const pushData = event.data.json();
-      console.log("📊 Parsed data:", pushData);
-      notificationData = { ...notificationData, ...pushData };
-      console.log("✅ Notification data final:", notificationData);
-    } else {
-      console.log("⚠️ Nenhum data no push event");
-    }
-  } catch (e) {
-    console.error("❌ Erro ao parsear dados do push:", e);
-    console.log("🔄 Usando dados padrão");
+    data = event.data ? event.data.json() : {};
+  } catch {
+    try {
+      data = JSON.parse(event.data.text());
+    } catch {}
   }
 
-  // 🔔 TOCAR SOM DA CAMPAINHA IMEDIATAMENTE
-  console.log("🚀 Iniciando som da campainha personalizado...");
-  playDoorbellSound(notificationData.sound);
+  const title = data.title || "🔔 Campainha Tocando!";
+  const body = data.body || "Alguém está na sua porta";
+  const tag = data.tag || "doorbell-ring";
+  const icon = data.icon || "/icons/icon-192x192.png";
+  const badge = data.badge || "/icons/icon-72x72.png";
+  // Som sugerido para o cliente (quando app estiver em foreground)
+  const suggestedSound = data.sound || "doorbell.mp3";
+
+  console.log("📊 Dados da notificação:", { title, body, suggestedSound });
 
   const options = {
-    body: notificationData.body,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-72x72.png",
-    image: "/icons/icon-512x512.png",
-
-    // CONFIGURAÇÕES CRÍTICAS PARA BACKGROUND
-    vibrate: [1000, 500, 1000, 500, 1000, 500], // Vibração longa como chamada
-    silent: false, // Permitir notificação aparecer normalmente
-    sound: notificationData.sound || "/sounds/doorbell.mp3", // Som personalizado da campainha
+    body,
+    icon,
+    badge,
+    tag,
+    // IMPORTANTE: não existe suporte estável a `sound` aqui - som será padrão do sistema
+    vibrate: [1000, 500, 1000, 500, 1000, 500], // Vibração como campainha
     requireInteraction: true, // Não desaparece sozinha
-    persistent: true, // Manter visível
-
-    // AÇÕES DISPONÍVEIS NA NOTIFICAÇÃO
+    data: {
+      suggestedSound, // Passa sugestão de som para o cliente
+      visitId: data.visitId,
+      timestamp: data.timestamp,
+      type: "doorbell_call",
+    },
     actions: [
       {
         action: "answer",
         title: "📞 Atender",
-        icon: "/icons/icon-96x96.png",
-      },
-      {
-        action: "message",
-        title: "💬 Mensagem",
         icon: "/icons/icon-96x96.png",
       },
       {
@@ -165,50 +84,31 @@ self.addEventListener("push", (event) => {
         icon: "/icons/icon-96x96.png",
       },
     ],
-
-    // DADOS PARA RASTREAMENTO
-    data: {
-      visitId: notificationData.visitId,
-      timestamp: notificationData.timestamp,
-      type: "doorbell_call",
-    },
-
-    // TAGS PARA CONTROLE
-    tag: "doorbell-ring",
-    renotify: true,
   };
 
-  event.waitUntil(
-    Promise.all([
-      // 1. Mostrar notificação (som já está tocando acima)
-      self.registration.showNotification(notificationData.title, options),
+  // Mostrar notificação (usa som padrão do sistema)
+  const showPromise = self.registration.showNotification(title, options);
 
-      // 2. Comunicar com app se estiver aberto
-      notifyOpenClients(notificationData),
-    ])
-  );
-});
-
-// FUNÇÃO PARA COMUNICAR COM APP ABERTO (SE HOUVER)
-async function notifyOpenClients(data) {
-  try {
-    const clients = await self.clients.matchAll({
-      type: "window",
-      includeUncontrolled: true,
-    });
-
-    console.log(`📱 Notificando ${clients.length} clientes abertos`);
-
-    clients.forEach((client) => {
-      client.postMessage({
-        type: "DOORBELL_RING",
-        data: data,
+  // Avisar clientes abertos para tocar som customizado (quando possível)
+  const notifyClients = self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clients) => {
+      console.log(
+        `📱 Notificando ${clients.length} clientes para som customizado`
+      );
+      clients.forEach((client) => {
+        client.postMessage({
+          type: "PLAY_CUSTOM_SOUND",
+          sound: suggestedSound,
+          title,
+          body,
+          tag,
+        });
       });
     });
-  } catch (error) {
-    console.error("Erro ao notificar clientes:", error);
-  }
-}
+
+  event.waitUntil(Promise.all([showPromise, notifyClients]));
+});
 
 // AÇÕES DA NOTIFICAÇÃO
 self.addEventListener("notificationclick", (event) => {
@@ -221,19 +121,14 @@ self.addEventListener("notificationclick", (event) => {
   if (action === "answer") {
     // Abrir app para atender
     event.waitUntil(
-      clients.openWindow(`/atendimento?call=${data.visitId}&action=answer`)
-    );
-  } else if (action === "message") {
-    // Abrir para enviar mensagem rápida
-    event.waitUntil(
-      clients.openWindow(`/atendimento?call=${data.visitId}&action=message`)
+      self.clients.openWindow(`/atendimento?call=${data.visitId}&action=answer`)
     );
   } else if (action === "ignore") {
     // Log de chamada ignorada
     console.log("🔇 Chamada ignorada:", data.visitId);
   } else {
     // Clique na notificação principal
-    event.waitUntil(clients.openWindow("/atendimento"));
+    event.waitUntil(self.clients.openWindow("/atendimento"));
   }
 });
 
@@ -245,6 +140,4 @@ self.addEventListener("message", (event) => {
 });
 
 // LOG DE ATIVIDADE
-console.log(
-  "🚀 Service Worker carregado - Pronto para receber chamadas em background!"
-);
+console.log("🚀 Service Worker carregado - Pronto para receber chamadas!");

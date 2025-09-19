@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ApiService from "@/lib/api";
 import { useAutoSubscription } from "@/hooks/useAutoSubscription";
+import { playSound, unlockAudio, getSoundConfig } from "@/lib/sound";
 
 interface CallPageContentProps {
   user: {
@@ -111,30 +112,20 @@ export function CallPageContent({ user }: CallPageContentProps) {
   const playRingSound = async () => {
     try {
       console.log("🔔 Testando som da campainha...");
-      const audio = new Audio("/sounds/doorbell.mp3");
-      audio.volume = 1.0;
-      await audio.play();
 
-      // Simular padrão de campainha (3 toques)
-      for (let i = 0; i < 2; i++) {
-        setTimeout(
-          async () => {
-            try {
-              const repeatAudio = new Audio("/sounds/doorbell.mp3");
-              repeatAudio.volume = 1.0;
-              await repeatAudio.play();
-              console.log(`🔔 Toque da campainha ${i + 2}/3`);
-            } catch (e) {
-              console.log(`Erro no toque ${i + 2}:`, e);
-            }
-          },
-          (i + 1) * 2000
-        );
-      }
+      // Primeiro desbloquear áudio se necessário
+      const cfg = getSoundConfig();
+      unlockAudio(cfg.file);
 
-      console.log("🎵 Som da campainha reproduzido com sucesso");
+      // Aguardar um pouco para o desbloqueio
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Tocar som usando a nova lib
+      await playSound("doorbell.mp3");
+
+      console.log("🎵 Som da campainha testado com sucesso");
     } catch (error) {
-      console.error("❌ Erro ao reproduzir som da campainha:", error);
+      console.error("❌ Erro ao testar som da campainha:", error);
     }
   };
 
@@ -302,9 +293,16 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
         {/* User Info Card */}
         <Card className="mb-6 p-6">
-          <h2 className="mb-4 text-xl font-semibold">
-            👤 Informações do Usuário
-          </h2>
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-xl font-semibold">👤 Informações do Usuário</h2>
+            <Button
+              onClick={() => (window.location.href = `/editar-cadastro`)}
+              variant="outline"
+              size="sm"
+            >
+              ✏️ Editar
+            </Button>
+          </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p>

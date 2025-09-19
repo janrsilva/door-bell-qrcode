@@ -1,7 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import RingButton from "@/components/ring-button";
 import CountdownTimer from "@/components/countdown-timer";
+import LocationTracker from "@/components/LocationTracker";
+import { type Coordinates } from "@/lib/utils/latlong";
 
 type Props = {
   visit: {
@@ -17,11 +22,30 @@ type Props = {
       city: string;
       state: string;
       zipCode: string;
+      latitude?: number;
+      longitude?: number;
     };
   };
 };
 
 export default function DoorbellPageClient({ visit }: Props) {
+  const [visitorCoords, setVisitorCoords] = useState<Coordinates | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+
+  const handleLocationUpdate = (
+    coords: Coordinates | null,
+    dist: number | null
+  ) => {
+    setVisitorCoords(coords);
+    setDistance(dist);
+  };
+
+  // Verificar se endereço tem coordenadas
+  const addressCoords: Coordinates | null =
+    visit.address.latitude && visit.address.longitude
+      ? { lat: visit.address.latitude, lon: visit.address.longitude }
+      : null;
+
   return (
     <main className="min-h-dvh flex items-center justify-center p-4">
       <Card className="max-w-md w-full p-5 space-y-4">
@@ -53,6 +77,28 @@ export default function DoorbellPageClient({ visit }: Props) {
           </div>
         </div>
 
+        {/* Location Tracker */}
+        {addressCoords ? (
+          <LocationTracker
+            addressCoords={addressCoords}
+            onLocationUpdate={handleLocationUpdate}
+          />
+        ) : (
+          <Card className="p-4 bg-gray-50 border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">⚠️</div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-600">
+                  📍 Localização não configurada
+                </p>
+                <p className="text-sm text-gray-500">
+                  Este endereço não possui coordenadas cadastradas
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-start space-x-2">
             <div className="text-yellow-600 mt-0.5">⚠️</div>
@@ -69,7 +115,11 @@ export default function DoorbellPageClient({ visit }: Props) {
         </div>
 
         <Separator />
-        <RingButton visit={visit} />
+        <RingButton
+          visit={visit}
+          visitorCoords={visitorCoords}
+          distance={distance}
+        />
         <Separator />
         <div className="text-xs text-muted-foreground space-y-2">
           <p>

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSubscriptionsStore } from "@/lib/services/subscription-service";
+import {
+  saveSubscription,
+  getActiveSubscriptions,
+} from "@/lib/services/subscription-service";
 import { getAuthSession } from "@/lib/auth-helpers";
 
 export const runtime = "nodejs";
-
-const subscriptions = getSubscriptionsStore();
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,33 +34,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Gerar ID único para a subscription
-    const subscriptionId = `addr_${session.user.addressId}_${Date.now()}`;
+    // Salvar subscription no banco com limpeza automática
+    const savedSubscription = await saveSubscription(
+      session.user.id,
+      session.user.addressId,
+      subscription
+    );
 
-    // Salvar subscription (em produção, salvar no banco)
-    subscriptions.set(subscriptionId, {
-      subscription,
-      addressId: session.user.addressId,
-      userId: session.user.id,
-      addressUuid: session.user.addressUuid,
-      cpf: session.user.cpf,
-      createdAt: new Date(),
-      isActive: true,
-    });
-
-    console.log("✅ Push subscription salva:", {
-      id: subscriptionId,
+    console.log("✅ Push subscription salva no banco:", {
+      id: savedSubscription.id,
       endpoint: subscription.endpoint.substring(0, 50) + "...",
       addressId: session.user.addressId,
       userId: session.user.id,
-      addressUuid: session.user.addressUuid,
     });
-
-    console.log("📊 Total de subscriptions ativas:", subscriptions.size);
 
     return NextResponse.json({
       success: true,
-      subscriptionId,
+      subscriptionId: savedSubscription.id,
       message: "Subscription salva com sucesso",
     });
   } catch (error: any) {
@@ -79,27 +70,19 @@ export async function GET() {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
-    const result = [];
-    let total = 0;
-
-    for (const [id, data] of subscriptions.entries()) {
-      if (data.isActive && data.addressId === session.user.addressId) {
-        result.push({
-          id,
-          addressId: data.addressId,
-          createdAt: data.createdAt,
-          isActive: data.isActive,
-          endpoint: data.subscription.endpoint.substring(0, 50) + "...",
-        });
-        total++;
-      }
-    }
+    // Buscar subscriptions do banco para o usuário
+    const subscriptions = await getActiveSubscriptions(session.user.addressId);
 
     return NextResponse.json({
       success: true,
-      total,
-      subscriptions: result,
-      message: `${total} subscriptions encontradas para seu endereço`,
+      total: subscriptions.length,
+      subscriptions: subscriptions.map((sub, index) => ({
+        id: index + 1,
+        addressId: session.user.addressId,
+        endpoint: sub.endpoint.substring(0, 50) + "...",
+        isActive: true,
+      })),
+      message: `${subscriptions.length} subscriptions encontradas para seu endereço`,
     });
   } catch (error: any) {
     console.error("❌ Erro ao buscar subscriptions:", error);

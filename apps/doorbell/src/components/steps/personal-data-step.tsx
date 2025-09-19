@@ -1,5 +1,6 @@
 import { UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   FormControl,
   FormField,
@@ -11,10 +12,14 @@ import { type RegistrationFormData } from "@/lib/schemas";
 import { useInputMask } from "@/lib/masks";
 
 interface PersonalDataStepProps {
-  form: UseFormReturn<RegistrationFormData>;
+  form: any; // Simplified to avoid complex type conflicts
+  isEdit?: boolean;
 }
 
-export default function PersonalDataStep({ form }: PersonalDataStepProps) {
+export default function PersonalDataStep({
+  form,
+  isEdit = false,
+}: PersonalDataStepProps) {
   const cpfMask = useInputMask("cpf");
   const phoneMask = useInputMask("phone");
 
@@ -55,6 +60,22 @@ export default function PersonalDataStep({ form }: PersonalDataStepProps) {
             </FormItem>
           )}
         />
+
+        {!isEdit && (
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Senha</FormLabel>
+                <FormControl>
+                  <PasswordInput placeholder="Sua senha" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField

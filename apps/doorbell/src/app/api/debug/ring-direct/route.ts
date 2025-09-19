@@ -29,13 +29,13 @@ export async function POST() {
     console.log("🎯 Target AddressId fixo:", targetAddressId);
 
     // Buscar subscriptions
-    const subscriptions = getActiveSubscriptions(targetAddressId);
+    const subscriptions = await getActiveSubscriptions(targetAddressId);
 
     if (subscriptions.length === 0) {
       console.log("❌ NENHUMA SUBSCRIPTION PARA ADDRESSID 2!");
 
       // Debug todas as subscriptions
-      const allSubs = getActiveSubscriptions();
+      const allSubs = await getActiveSubscriptions();
       console.log(`📊 Total no sistema: ${allSubs.length}`);
 
       return NextResponse.json({

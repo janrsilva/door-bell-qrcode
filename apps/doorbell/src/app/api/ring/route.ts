@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getActiveSubscriptions } from "@/lib/services/subscription-service";
 import { PrismaClient } from "@prisma/client";
 import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import {
+  checkLocationProximity,
+  isValidCoordinates,
+  type Coordinates,
+} from "@/lib/utils/latlong";
 import webpush from "web-push";
 
 export const runtime = "nodejs";
@@ -91,6 +96,73 @@ export async function POST(req: NextRequest) {
       console.log("🧪 Toque de teste detectado:", visitUuid);
     }
 
+    // VERIFICAÇÃO DE PROXIMIDADE
+    console.log("📍 === VERIFICANDO LOCALIZAÇÃO ===");
+
+    if (coords && coords.lat && coords.lon && isValidCoordinates(coords)) {
+      console.log("📍 Coordenadas do visitante recebidas:", coords);
+
+      // Buscar coordenadas do endereço
+      const prisma = new PrismaClient();
+
+      try {
+        const visit = await prisma.doorbellVisit.findUnique({
+          where: { uuid: visitUuid },
+          include: { address: true },
+        });
+
+        if (visit?.address.latitude && visit?.address.longitude) {
+          const addressCoords: Coordinates = {
+            lat: visit.address.latitude,
+            lon: visit.address.longitude,
+          };
+
+          const visitorCoords: Coordinates = {
+            lat: coords.lat,
+            lon: coords.lon,
+          };
+
+          const locationResult = checkLocationProximity(
+            addressCoords,
+            visitorCoords
+          );
+
+          console.log("📏 Verificação de proximidade:", {
+            addressCoords,
+            visitorCoords,
+            distance: locationResult.distance,
+            isWithinRange: locationResult.isWithinRange,
+            maxDistance: locationResult.maxDistance,
+          });
+
+          if (!locationResult.isWithinRange) {
+            return NextResponse.json(
+              {
+                error: `Muito longe! Você está a ${locationResult.distance}m do endereço. Máximo permitido: ${locationResult.maxDistance}m`,
+                distance: locationResult.distance,
+                maxDistance: locationResult.maxDistance,
+              },
+              { status: 400 }
+            );
+          }
+
+          console.log(
+            `✅ Localização válida: ${locationResult.distance}m (dentro do limite de ${locationResult.maxDistance}m)`
+          );
+        } else {
+          console.log(
+            "⚠️ Endereço sem coordenadas cadastradas - pulando verificação de proximidade"
+          );
+        }
+      } finally {
+        await prisma.$disconnect();
+      }
+    } else {
+      console.log(
+        "⚠️ Coordenadas do visitante não fornecidas - pulando verificação de proximidade"
+      );
+    }
+
     console.log("✅ === VALIDAÇÃO CONCLUÍDA ===");
     console.log("🔔 Campainha tocada para visit:", visitUuid);
 
@@ -132,7 +204,9 @@ export async function POST(req: NextRequest) {
       }
 
       // Buscar subscriptions ativas para o endereço específico
-      subscriptions = getActiveSubscriptions(targetAddressId || undefined);
+      subscriptions = await getActiveSubscriptions(
+        targetAddressId || undefined
+      );
 
       console.log(
         `📡 Enviando push para ${subscriptions.length} dispositivos (addressId: ${targetAddressId})...`

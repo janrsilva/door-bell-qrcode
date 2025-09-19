@@ -31,7 +31,7 @@ async function main() {
   } else {
     console.log("📝 Criando dados de teste...");
 
-    // Criar endereço
+    // Criar endereço com coordenadas (São Paulo - Centro)
     const address = await prisma.address.create({
       data: {
         street: "Rua das Flores",
@@ -42,6 +42,8 @@ async function main() {
         state: "SP",
         zipCode: "01234-567",
         houseNumber: "123A",
+        latitude: -23.5505, // São Paulo - Centro
+        longitude: -46.6333,
       },
     });
 
@@ -83,4 +85,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -20,7 +20,7 @@ export default function AddressStep({ form }: AddressStepProps) {
   const cepMask = useInputMask("cep");
 
   const fetchCepData = async (cep: string) => {
-    if (!cep || cep.length < 8) return;
+    if (!cep || cep.length < 9) return;
 
     setCepLoading(true);
     try {

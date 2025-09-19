@@ -10,6 +10,7 @@ export const registrationSchema = z.object({
       /^\d{3}\.\d{3}\.\d{3}-\d{2}$/,
       "CPF deve estar no formato 000.000.000-00"
     ),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
   zipCode: z
     .string()
     .regex(/^\d{5}-?\d{3}$/, "CEP deve estar no formato 00000-000"),
@@ -19,6 +20,11 @@ export const registrationSchema = z.object({
   neighborhood: z.string().min(1, "Bairro é obrigatório"),
   city: z.string().min(1, "Cidade é obrigatória"),
   state: z.string().length(2, "Estado deve ter 2 caracteres"),
+  latitude: z.number().min(-90).max(90, "Latitude deve estar entre -90 e 90"),
+  longitude: z
+    .number()
+    .min(-180)
+    .max(180, "Longitude deve estar entre -180 e 180"),
 });
 
 export type RegistrationFormData = z.infer<typeof registrationSchema>;
