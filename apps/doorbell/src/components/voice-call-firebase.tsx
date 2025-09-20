@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { onValue, ref, update } from "firebase/database";
+import { onValue, ref } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
@@ -9,6 +9,7 @@ import { useDoorbellWebRTC } from "@/hooks/useDoorbellWebRTC";
 import { type Coordinates } from "@/lib/utils/latlong";
 
 interface VisitSnapshot {
+  uuid?: string;
   webRtcOffer?: { sdp: string; createdAt: string } | null;
   webRtcAnswer?: { sdp: string; createdAt: string } | null;
   status?: "offer_created" | "answered" | "ended" | string;
@@ -25,13 +26,13 @@ interface VisitSnapshot {
 }
 
 interface AddressSnapshot {
-  onCallVisit?: string | null;
+  onCallVisit?: VisitSnapshot | null;
   visits?: Record<string, VisitSnapshot>;
 }
 
 interface Props {
   role: "visitor" | "resident";
-  visitUuid?: string;
+  startVisitUuid?: string;
   addressUuid?: string;
   visit?: {
     uuid: string;
@@ -52,31 +53,17 @@ interface Props {
 export default function VoiceCallFirebase(props: Props) {
   const {
     role,
-    visitUuid,
     addressUuid,
-    visit,
+    startVisitUuid,
     visitorCoords,
     distance,
     onCallStart,
     onRequestLocation,
   } = props;
 
-  const [currentVisitId, setCurrentVisitId] = useState<string | null>(
-    role === "visitor" ? (visitUuid ?? null) : null
-  );
-  const currentVisitIdRef = useRef<string | null>(currentVisitId);
   const processedCandidatesRef = useRef<Set<string>>(new Set());
   const appliedAnswerRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    currentVisitIdRef.current = currentVisitId;
-  }, [currentVisitId]);
-
-  useEffect(() => {
-    if (role === "visitor") {
-      setCurrentVisitId(visitUuid ?? null);
-    }
-  }, [role, visitUuid]);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   const postIceCandidate = useCallback(
     async (visitId: string, candidate: RTCIceCandidate) => {
@@ -112,7 +99,6 @@ export default function VoiceCallFirebase(props: Props) {
     hasRemoteStream,
     isMuted,
     ensureLocalStream,
-    enableLocalVideo,
     toggleMute,
     createOffer,
     acceptOffer,
@@ -121,7 +107,7 @@ export default function VoiceCallFirebase(props: Props) {
     setError,
     reset,
   } = useDoorbellWebRTC((candidate) => {
-    const visitId = currentVisitIdRef.current;
+    const visitId = startVisitUuid;
     if (!visitId) return;
     void postIceCandidate(visitId, candidate);
   });
@@ -131,12 +117,36 @@ export default function VoiceCallFirebase(props: Props) {
 
   useEffect(() => {
     if (localStream && localVideoRef.current) {
+      console.log(
+        "🎥 [VOICE_CALL] Configurando stream local no vídeo:",
+        localStream
+      );
+      console.log(
+        "🎥 [VOICE_CALL] Audio tracks locais:",
+        localStream.getAudioTracks()
+      );
+      console.log(
+        "🎥 [VOICE_CALL] Video tracks locais:",
+        localStream.getVideoTracks()
+      );
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
 
   useEffect(() => {
     if (remoteStream && remoteVideoRef.current) {
+      console.log(
+        "🎥 [VOICE_CALL] Configurando stream remoto no vídeo:",
+        remoteStream
+      );
+      console.log(
+        "🎥 [VOICE_CALL] Audio tracks remotos:",
+        remoteStream.getAudioTracks()
+      );
+      console.log(
+        "🎥 [VOICE_CALL] Video tracks remotos:",
+        remoteStream.getVideoTracks()
+      );
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
@@ -149,7 +159,62 @@ export default function VoiceCallFirebase(props: Props) {
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
 
   const [visitData, setVisitData] = useState<VisitSnapshot | null>(null);
-  // Resident: listen for onCallVisit changes on the address node
+  const endedProcessedRef = useRef(false);
+
+  const cleanupCall = useCallback(
+    async (updateFirebase: boolean, message: string) => {
+      setStatusMessage(message);
+      setIsWaitingForAnswer(false);
+      processedCandidatesRef.current.clear();
+      appliedAnswerRef.current = null;
+      pendingIceCandidatesRef.current = [];
+      endedProcessedRef.current = true;
+      reset();
+      setCallState("idle");
+
+      if (updateFirebase) {
+        // Determinar o visitId correto baseado no role
+        const visitId = role === "visitor" ? startVisitUuid : visitData?.uuid;
+
+        if (visitId) {
+          try {
+            console.log(
+              `🔚 [CLEANUP] Encerrando chamada para visitId: ${visitId}`
+            );
+            const response = await fetch(`/api/doorbell/${visitId}/end`, {
+              method: "POST",
+            });
+
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              console.error("❌ Falha ao encerrar chamada via API:", payload);
+            } else {
+              console.log(
+                "✅ [CLEANUP] Chamada encerrada com sucesso no servidor"
+              );
+            }
+          } catch (error) {
+            console.error("❌ Falha ao encerrar chamada via API:", error);
+          }
+        } else {
+          console.warn(
+            "⚠️ [CLEANUP] Nenhum visitId encontrado para encerrar chamada"
+          );
+        }
+      }
+
+      if (role === "resident") {
+        setVisitData(null);
+      }
+    },
+    [reset, role, startVisitUuid, visitData?.uuid]
+  );
+
+  const handleEndCall = useCallback(async () => {
+    console.log("🔚 [END_CALL] Encerrando chamada de ambos os lados...");
+    await cleanupCall(true, "Chamada encerrada");
+  }, [cleanupCall]);
+
   useEffect(() => {
     if (role !== "resident" || !addressUuid) {
       return;
@@ -160,46 +225,92 @@ export default function VoiceCallFirebase(props: Props) {
 
     const unsubscribe = onValue(addressRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as AddressSnapshot | null;
+      const onCallVisit = data?.onCallVisit;
+      const onCallVisitId = onCallVisit?.uuid;
 
-      const onCallVisitId = data?.onCallVisit ?? null;
-      if (onCallVisitId && onCallVisitId !== currentVisitIdRef.current) {
+      if (onCallVisitId) {
+        console.log("📞 [RESIDENT] Visita ativa detectada:", onCallVisitId);
         processedCandidatesRef.current.clear();
         appliedAnswerRef.current = null;
-        setCurrentVisitId(onCallVisitId);
+        endedProcessedRef.current = false;
+        setVisitData(onCallVisit);
         setCallState("ringing");
         setStatusMessage("📞 Visitante chamando");
       }
 
-      if (!onCallVisitId && role === "resident") {
-        setCurrentVisitId(null);
-        processedCandidatesRef.current.clear();
-        appliedAnswerRef.current = null;
-        if (callState !== "idle") {
-          setCallState("idle");
-        }
+      // Se onCallVisit for null/undefined, encerrar automaticamente
+      if (!onCallVisitId) {
+        console.log(
+          "🔚 [RESIDENT] onCallVisit removido - encerrando chamada automaticamente"
+        );
+        void cleanupCall(false, "Chamada encerrada pelo outro lado");
       }
     });
 
     return () => unsubscribe();
-  }, [role, addressUuid, callState]);
+  }, [role, addressUuid, cleanupCall]);
+
+  useEffect(() => {
+    const status = visitData?.status;
+    if (!status) {
+      endedProcessedRef.current = false;
+      return;
+    }
+
+    if (status === "ended") {
+      if (!endedProcessedRef.current) {
+        endedProcessedRef.current = true;
+        void cleanupCall(false, "Chamada encerrada pelo outro lado");
+      }
+    } else {
+      endedProcessedRef.current = false;
+    }
+  }, [visitData?.status, cleanupCall]);
 
   // Listen to visit node for offer/answer updates
   useEffect(() => {
-    if (!currentVisitId) {
+    if (!startVisitUuid) {
       setVisitData(null);
       return;
     }
 
     const db = getFirebaseRealtimeDatabase();
-    const visitRef = ref(db, `visits/${currentVisitId}`);
+    const onCallVisitRef = ref(db, `addresses/${addressUuid}/onCallVisit`);
 
-    const unsubscribe = onValue(visitRef, (snapshot) => {
+    const unsubscribe = onValue(onCallVisitRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as VisitSnapshot | null;
+      console.log("🔍 [ON_CALL_VISIT_REF] Visit data:", data);
       setVisitData(data);
     });
 
     return () => unsubscribe();
-  }, [currentVisitId]);
+  }, [startVisitUuid]);
+
+  // Monitor visit status for visitor to detect when call is ended
+  useEffect(() => {
+    if (role !== "visitor" || !startVisitUuid) {
+      return;
+    }
+
+    const db = getFirebaseRealtimeDatabase();
+    const visitRef = ref(
+      db,
+      `addresses/${addressUuid}/visits/${startVisitUuid}`
+    );
+
+    const unsubscribe = onValue(visitRef, (snapshot) => {
+      const visitData = (snapshot.val() ?? null) as any;
+
+      if (visitData?.status === "ended") {
+        console.log(
+          "🔚 [VISITOR] Visita encerrada detectada - encerrando chamada automaticamente"
+        );
+        void cleanupCall(false, "Chamada encerrada pelo outro lado");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [role, startVisitUuid, cleanupCall]);
 
   // Apply remote answer automatically for visitor
   useEffect(() => {
@@ -271,11 +382,41 @@ export default function VoiceCallFirebase(props: Props) {
         sdpMid: payload.sdpMid ?? undefined,
       };
 
+      // Se não há peer connection ativa, armazenar para aplicar depois
+      if (connectionState === "unset") {
+        console.log(
+          "🧊 [VOICE_CALL] ICE candidate pendente - aguardando peer connection"
+        );
+        pendingIceCandidatesRef.current.push(candidate);
+        return;
+      }
+
       applyIceCandidate(candidate).catch((error) => {
         console.error("❌ Erro ao aplicar ICE candidate:", error);
       });
     });
-  }, [visitData?.iceCandidates, applyIceCandidate, role]);
+  }, [visitData?.iceCandidates, applyIceCandidate, role, connectionState]);
+
+  // Apply pending ICE candidates when peer connection becomes available
+  useEffect(() => {
+    if (
+      connectionState !== "unset" &&
+      pendingIceCandidatesRef.current.length > 0
+    ) {
+      console.log(
+        `🧊 [VOICE_CALL] Aplicando ${pendingIceCandidatesRef.current.length} ICE candidates pendentes`
+      );
+
+      const candidatesToApply = [...pendingIceCandidatesRef.current];
+      pendingIceCandidatesRef.current = [];
+
+      candidatesToApply.forEach((candidate) => {
+        applyIceCandidate(candidate).catch((error) => {
+          console.error("❌ Erro ao aplicar ICE candidate pendente:", error);
+        });
+      });
+    }
+  }, [connectionState, applyIceCandidate]);
 
   useEffect(() => {
     if (connectionState === "connected" && callState !== "connected") {
@@ -292,12 +433,26 @@ export default function VoiceCallFirebase(props: Props) {
   }, [connectionState, callState]);
 
   const ensureVisitId = useCallback((): string => {
-    const id = currentVisitIdRef.current;
-    if (!id) {
-      throw new Error("Nenhuma visita ativa");
+    // Para visitor, usa startVisitUuid
+    if (role === "visitor") {
+      const id = startVisitUuid;
+      if (!id) {
+        throw new Error("Nenhuma visita ativa");
+      }
+      return id;
     }
-    return id;
-  }, []);
+
+    // Para resident, usa o visitId da visita ativa detectada
+    if (role === "resident") {
+      const id = visitData?.uuid;
+      if (!id) {
+        throw new Error("Nenhuma visita ativa para aceitar");
+      }
+      return id;
+    }
+
+    throw new Error("Role não reconhecido");
+  }, [role, startVisitUuid, visitData?.uuid]);
 
   const postOffer = useCallback(
     async (offer: RTCSessionDescriptionInit) => {
@@ -370,7 +525,8 @@ export default function VoiceCallFirebase(props: Props) {
   const handleStartCall = useCallback(async () => {
     if (role !== "visitor") return;
 
-    if (!currentVisitIdRef.current) {
+    console.log("🔍 [HANDLE_START_CALL] visitData:", visitData);
+    if (!startVisitUuid) {
       throw new Error("visitId não definido");
     }
 
@@ -394,10 +550,16 @@ export default function VoiceCallFirebase(props: Props) {
       setCallState("calling");
 
       await ensureLocalStream({ withVideo: true });
-      const offer = await createOffer({ withLocalVideo: true });
+      const offer = await createOffer({
+        receiveAudio: true,
+        receiveVideo: true,
+        withLocalVideo: true,
+      });
 
       processedCandidatesRef.current.clear();
       appliedAnswerRef.current = null;
+      pendingIceCandidatesRef.current = [];
+      endedProcessedRef.current = false;
 
       const sent = await postOffer(offer);
       if (sent) {
@@ -442,10 +604,14 @@ export default function VoiceCallFirebase(props: Props) {
 
       processedCandidatesRef.current.clear();
       appliedAnswerRef.current = null;
+      pendingIceCandidatesRef.current = [];
+      endedProcessedRef.current = false;
 
-      await ensureLocalStream({ withVideo: false });
+      await ensureLocalStream({ withVideo: true });
       const answer = await acceptOffer(incomingOffer, {
-        withLocalVideo: false,
+        receiveAudio: true,
+        receiveVideo: true,
+        withLocalVideo: true,
       });
       const sent = await postAnswer(answer);
 
@@ -470,69 +636,6 @@ export default function VoiceCallFirebase(props: Props) {
     setError,
   ]);
 
-  const effectiveAddressUuid = useMemo(() => {
-    if (role === "visitor") {
-      return visit?.address?.addressUuid ?? null;
-    }
-    return addressUuid ?? null;
-  }, [role, visit?.address?.addressUuid, addressUuid]);
-
-  const handleEndCall = useCallback(async () => {
-    const visitId = currentVisitIdRef.current;
-
-    setCallState("ended");
-    setStatusMessage("Chamada encerrada");
-    setIsWaitingForAnswer(false);
-    processedCandidatesRef.current.clear();
-    appliedAnswerRef.current = null;
-    reset();
-
-    if (!visitId) {
-      return;
-    }
-
-    try {
-      const db = getFirebaseRealtimeDatabase();
-      const timestamp = new Date().toISOString();
-
-      await update(ref(db, `visits/${visitId}`), {
-        status: "ended",
-        updatedAt: timestamp,
-      });
-
-      if (effectiveAddressUuid) {
-        await update(
-          ref(db, `addresses/${effectiveAddressUuid}/visits/${visitId}`),
-          {
-            status: "ended",
-            updatedAt: timestamp,
-          }
-        );
-
-        await update(ref(db, `addresses/${effectiveAddressUuid}`), {
-          onCallVisit: null,
-        });
-      }
-    } catch (error) {
-      console.error("❌ Falha ao atualizar status da chamada:", error);
-    }
-
-    setCallState("idle");
-    setCurrentVisitId(role === "visitor" ? currentVisitIdRef.current : null);
-  }, [reset, role, effectiveAddressUuid, setCurrentVisitId]);
-
-  const handleEnableCamera = useCallback(async () => {
-    try {
-      await enableLocalVideo();
-      setStatusMessage("Câmera ativada");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Erro ao ativar câmera";
-      setError(message);
-      setStatusMessage(`❌ ${message}`);
-    }
-  }, [enableLocalVideo, setError]);
-
   const infoCards = useMemo(
     () => [
       { label: "Peer", value: connectionState },
@@ -548,7 +651,7 @@ export default function VoiceCallFirebase(props: Props) {
   const callAllowed =
     role === "visitor"
       ? visitorCoords !== null && (distance === null || distance <= 50)
-      : Boolean(currentVisitId);
+      : Boolean(visitData?.uuid);
 
   const renderStreams = hasLocalStream || hasRemoteStream;
 
@@ -585,9 +688,7 @@ export default function VoiceCallFirebase(props: Props) {
               playsInline
               className="aspect-video w-full rounded bg-black object-cover"
             />
-            <p className="text-xs text-muted-foreground">
-              {localVideoEnabled ? "Câmera ativa" : "Apenas áudio"}
-            </p>
+            <p className="text-xs text-muted-foreground">Câmera ativa</p>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Visitante</p>
@@ -625,14 +726,6 @@ export default function VoiceCallFirebase(props: Props) {
               <Button onClick={toggleMute} variant="outline" size="sm">
                 {isMuted ? "🔊" : "🔇"}
               </Button>
-              <Button
-                onClick={handleEnableCamera}
-                variant="outline"
-                size="sm"
-                disabled={localVideoEnabled}
-              >
-                📹 {localVideoEnabled ? "Câmera ativa" : "Ativar câmera"}
-              </Button>
               <Button onClick={handleEndCall} variant="destructive" size="sm">
                 ❌ Encerrar
               </Button>
@@ -642,7 +735,7 @@ export default function VoiceCallFirebase(props: Props) {
       ) : (
         <div className="space-y-3">
           <div className="text-sm text-muted-foreground">
-            Visita atual: {currentVisitId ? currentVisitId : "nenhuma"}
+            Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
           </div>
           <Button
             onClick={handleAcceptCall}
@@ -655,14 +748,6 @@ export default function VoiceCallFirebase(props: Props) {
             <div className="flex gap-2">
               <Button onClick={toggleMute} variant="outline" size="sm">
                 {isMuted ? "🔊" : "🔇"}
-              </Button>
-              <Button
-                onClick={handleEnableCamera}
-                variant="outline"
-                size="sm"
-                disabled={localVideoEnabled}
-              >
-                📹 {localVideoEnabled ? "Câmera ativa" : "Ativar câmera"}
               </Button>
               <Button onClick={handleEndCall} variant="destructive" size="sm">
                 ❌ Encerrar

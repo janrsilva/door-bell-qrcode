@@ -629,7 +629,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
         {/* Available Calls */}
         <AvailableCalls
           addressUuid={user.address.addressUuid}
-          onCallAccepted={(visitId) => {
+          onCallAccepted={(visitId: string) => {
             console.log("Chamada aceita:", visitId);
             // TODO: Implementar feedback visual ou notificação
           }}
@@ -637,10 +637,10 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
         {/* WebRTC Voice Call Component */}
         <VoiceCallFirebase
+          role="resident"
           addressUuid={user.address.addressUuid}
           visitorCoords={null}
           distance={null}
-          role="resident"
         />
 
         {/* PWA Status Card */}

@@ -17,6 +17,7 @@ type Props = {
     expiredAt?: Date;
     isExpired?: boolean;
     address: {
+      addressUuid: string;
       street: string;
       number: string;
       complement?: string;
@@ -402,13 +403,13 @@ export default function DoorbellPageClient({ visit }: Props) {
 
         {/* Voice Call Component */}
         <VoiceCallFirebase
-          visitUuid={visit.uuid}
-          visit={visit}
+          role="visitor"
+          addressUuid={visit.address.addressUuid}
+          startVisitUuid={visit.uuid}
           visitorCoords={visitorCoords}
           distance={distance}
           onCallStart={handleCallStart}
           onRequestLocation={requestLocationOnDemand}
-          role="visitor"
         />
         <Separator />
         <div className="text-xs text-muted-foreground space-y-2">

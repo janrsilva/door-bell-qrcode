@@ -49,9 +49,12 @@ export async function POST(
       address: visit.address,
     });
 
-    const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
-    const addressVisitRef = addressRef.child(`visits/${visitId}`);
-    const rootVisitRef = db.ref(`visits/${visitId}`);
+    const onCallVisitRef = db.ref(
+      `addresses/${visit.address.addressUuid}/onCallVisit`
+    );
+    const addressVisitRef = db
+      .ref(`addresses/${visit.address.addressUuid}`)
+      .child(`visits/${visitId}`);
 
     const answerPayload = {
       webRtcAnswer: {
@@ -63,7 +66,10 @@ export async function POST(
     };
 
     await addressVisitRef.update(answerPayload);
-    await rootVisitRef.update(answerPayload);
+    await onCallVisitRef.update({
+      ...answerPayload,
+      uuid: visitId,
+    });
 
     return NextResponse.json({
       success: true,

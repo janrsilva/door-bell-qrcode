@@ -41,12 +41,13 @@ export async function POST(
 
     // Nova estrutura: addresses/{addressUuid}/visits/{visitUuid}
     const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
+    const onCallVisitRef = db.ref(
+      `addresses/${visit.address.addressUuid}/onCallVisit`
+    );
     const addressVisitCandidatesRef = addressRef
       .child(`visits/${visitId}`)
       .child("iceCandidates");
-    const rootVisitCandidatesRef = db
-      .ref(`visits/${visitId}`)
-      .child("iceCandidates");
+    const onCallVisitCandidatesRef = onCallVisitRef.child("iceCandidates");
 
     const payload = {
       candidate: body.candidate,
@@ -57,7 +58,7 @@ export async function POST(
     };
 
     await addressVisitCandidatesRef.push(payload);
-    await rootVisitCandidatesRef.push(payload);
+    await onCallVisitCandidatesRef.push(payload);
 
     console.log("✅ [ICE_API] ICE candidate salvo no Firebase");
 

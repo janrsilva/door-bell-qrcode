@@ -156,6 +156,15 @@ export function useDoorbellWebRTC(
 
     pc.ontrack = (event) => {
       console.log("🎵 [HOOK] ontrack event recebido:", event);
+      console.log("🎵 [HOOK] Track details:", {
+        kind: event.track.kind,
+        id: event.track.id,
+        enabled: event.track.enabled,
+        muted: event.track.muted,
+        readyState: event.track.readyState,
+        streams: event.streams.length,
+      });
+
       const [stream] = event.streams;
       if (!stream) {
         console.log("⚠️ [HOOK] Stream não encontrado no event");
@@ -165,6 +174,8 @@ export function useDoorbellWebRTC(
       console.log("✅ [HOOK] Stream remoto recebido:", stream);
       console.log("🎵 [HOOK] Audio tracks:", stream.getAudioTracks());
       console.log("📹 [HOOK] Video tracks:", stream.getVideoTracks());
+      console.log("📹 [HOOK] Stream ID:", stream.id);
+      console.log("📹 [HOOK] Stream active:", stream.active);
 
       updateRemoteMediaElements(stream);
       setHasRemoteStream(true);
@@ -173,6 +184,10 @@ export function useDoorbellWebRTC(
       );
 
       const handleTrackUpdate = () => {
+        console.log(
+          "📹 [HOOK] Track update - video tracks:",
+          stream.getVideoTracks().length
+        );
         setRemoteVideoEnabled(stream.getVideoTracks().length > 0);
       };
 
@@ -379,15 +394,55 @@ export function useDoorbellWebRTC(
       attachLocalTracks(pc, stream);
       console.log("✅ [HOOK] Tracks locais anexados");
 
-      const videoTransceiver = pc
-        .getTransceivers()
-        .find((transceiver) => transceiver.receiver.track?.kind === "video");
+      // Log todos os transceivers disponíveis
+      const allTransceivers = pc.getTransceivers();
+      console.log(`📹 [HOOK] Total de transceivers: ${allTransceivers.length}`);
+      allTransceivers.forEach((transceiver, index) => {
+        console.log(`📹 [HOOK] Transceiver ${index}:`, {
+          direction: transceiver.direction,
+          receiverTrack: transceiver.receiver.track?.kind || "null",
+          senderTrack: transceiver.sender.track?.kind || "null",
+          currentDirection: transceiver.currentDirection,
+        });
+      });
 
-      if (videoTransceiver) {
-        videoTransceiver.direction = "sendrecv";
-        videoTransceiver.sender.setStreams(stream);
-        videoSenderRef.current = videoTransceiver.sender;
-        console.log("✅ [HOOK] Video transceiver configurado");
+      // Configurar transceivers de vídeo após setRemoteDescription
+      const videoTransceivers = pc
+        .getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track?.kind === "video");
+
+      console.log(
+        `📹 [HOOK] Encontrados ${videoTransceivers.length} transceivers de vídeo`
+      );
+
+      // Se não há transceivers de vídeo, criar um
+      if (videoTransceivers.length === 0 && receiveVideo) {
+        console.log("📹 [HOOK] Criando transceiver de vídeo para receber");
+        const videoTransceiver = pc.addTransceiver("video", {
+          direction: "recvonly",
+        });
+        console.log("✅ [HOOK] Transceiver de vídeo criado para receber");
+      }
+
+      // Configurar todos os transceivers de vídeo existentes
+      const allVideoTransceivers = pc
+        .getTransceivers()
+        .filter(
+          (transceiver) =>
+            transceiver.receiver.track?.kind === "video" ||
+            transceiver.receiver.track === null
+        );
+
+      for (const transceiver of allVideoTransceivers) {
+        if (withLocalVideo) {
+          transceiver.direction = "sendrecv";
+          transceiver.sender.setStreams(stream);
+          videoSenderRef.current = transceiver.sender;
+          console.log("✅ [HOOK] Video transceiver configurado para sendrecv");
+        } else {
+          transceiver.direction = "recvonly";
+          console.log("✅ [HOOK] Video transceiver configurado para recvonly");
+        }
       }
 
       console.log("🔄 [HOOK] Criando answer...");

@@ -51,9 +51,10 @@ export async function POST(
     // Nova estrutura: addresses/{addressUuid}/visits/{visitUuid}
     const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
     const addressVisitRef = addressRef.child(`visits/${visitId}`);
-    const rootVisitRef = db.ref(`visits/${visitId}`);
+    const onCallVisitRef = addressRef.child("onCallVisit");
 
     const visitPayload = {
+      uuid: visitId,
       webRtcOffer: {
         sdp: body.sdp,
         createdAt: now,
@@ -65,13 +66,15 @@ export async function POST(
       createdAt: visit.createdAt.toISOString(),
     };
 
-    await addressVisitRef.update({ ...visitPayload, iceCandidates: null });
-    await rootVisitRef.update({ ...visitPayload, iceCandidates: null });
+    const payloadWithReset = {
+      ...visitPayload,
+      iceCandidates: null,
+    };
 
-    // Marcar como visita em chamada
-    await addressRef.update({
-      onCallVisit: visitId,
-    });
+    await Promise.all([
+      addressVisitRef.set(payloadWithReset),
+      onCallVisitRef.set(payloadWithReset),
+    ]);
 
     const { devicesNotified, reason } = await notifyResidentOfferAvailable(
       visitId,
