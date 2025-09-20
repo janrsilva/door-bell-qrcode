@@ -96,7 +96,7 @@ export default withAuth(
       );
       response.headers.set(
         "x-address-uuid",
-        req.nextauth.token.addressUuid || ""
+        String(req.nextauth.token.addressUuid || "")
       );
       response.headers.set("x-user-name", req.nextauth.token.name || "");
       response.headers.set("x-user-email", req.nextauth.token.email || "");

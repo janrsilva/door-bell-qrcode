@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import RingButton from "@/components/ring-button";
+import VoiceCallFirebase from "@/components/voice-call-firebase";
 import CountdownTimer from "@/components/countdown-timer";
-import LocationTracker from "@/components/LocationTracker";
 import { type Coordinates } from "@/lib/utils/latlong";
+import ApiService from "@/lib/api";
+import { getSimpleLocationInstructions } from "@/lib/utils/location-instructions";
 
 type Props = {
   visit: {
@@ -31,6 +33,19 @@ type Props = {
 export default function DoorbellPageClient({ visit }: Props) {
   const [visitorCoords, setVisitorCoords] = useState<Coordinates | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
+  const [locationPermissionDenied, setLocationPermissionDenied] =
+    useState(false);
+  const [isRequestingLocationManually, setIsRequestingLocationManually] =
+    useState(false);
+  const [isGettingLocationAutomatically, setIsGettingLocationAutomatically] =
+    useState(false);
+  const hasCheckedLocationRef = useRef(false);
+
+  // Verificar se endereço tem coordenadas (mover para antes do useEffect)
+  const addressCoords: Coordinates | null =
+    visit.address.latitude && visit.address.longitude
+      ? { lat: visit.address.latitude, lon: visit.address.longitude }
+      : null;
 
   const handleLocationUpdate = (
     coords: Coordinates | null,
@@ -40,11 +55,160 @@ export default function DoorbellPageClient({ visit }: Props) {
     setDistance(dist);
   };
 
-  // Verificar se endereço tem coordenadas
-  const addressCoords: Coordinates | null =
-    visit.address.latitude && visit.address.longitude
-      ? { lat: visit.address.latitude, lon: visit.address.longitude }
-      : null;
+  // Verificar e obter localização automaticamente se já foi permitida
+  useEffect(() => {
+    const checkAndGetLocation = async () => {
+      if (
+        "permissions" in navigator &&
+        addressCoords &&
+        !visitorCoords &&
+        !hasCheckedLocationRef.current
+      ) {
+        hasCheckedLocationRef.current = true; // Marcar que já verificou
+        try {
+          const permission = await navigator.permissions.query({
+            name: "geolocation",
+          });
+
+          if (permission.state === "denied") {
+            setLocationPermissionDenied(true);
+          } else if (permission.state === "granted") {
+            // Permissão já foi concedida, obter localização automaticamente
+            setIsGettingLocationAutomatically(true);
+            const result = await requestLocationOnDemand();
+            setIsGettingLocationAutomatically(false);
+
+            if (result.success) {
+              console.log(
+                "✅ Localização obtida automaticamente:",
+                result.coords
+              );
+            }
+          }
+
+          // Escutar mudanças na permissão
+          permission.onchange = async () => {
+            const newState = permission.state === "denied";
+            if (newState) {
+              setLocationPermissionDenied(newState);
+            }
+
+            // Se mudou para granted e ainda não temos coordenadas, obter localização
+            if (permission.state === "granted" && !newState && !visitorCoords) {
+              setIsGettingLocationAutomatically(true);
+              const result = await requestLocationOnDemand();
+              setIsGettingLocationAutomatically(false);
+
+              if (result.success) {
+                console.log(
+                  "✅ Localização obtida após mudança de permissão:",
+                  result.coords
+                );
+              }
+            }
+          };
+        } catch (error) {
+          console.warn("Could not check location permission:", error);
+        }
+      }
+    };
+
+    checkAndGetLocation();
+  }, []); // Executar apenas uma vez ao montar o componente
+
+  // Função para solicitar localização sob demanda
+  const requestLocationOnDemand = async (): Promise<{
+    success: boolean;
+    coords?: Coordinates;
+    error?: string;
+  }> => {
+    if (!addressCoords) {
+      return {
+        success: false,
+        error: "Endereço não possui coordenadas configuradas",
+      };
+    }
+
+    try {
+      // Verificar se já foi negada anteriormente
+      if ("permissions" in navigator) {
+        const permission = await navigator.permissions.query({
+          name: "geolocation",
+        });
+        if (permission.state === "denied") {
+          return { success: false, error: "permission_denied" };
+        }
+      }
+
+      // Solicitar localização
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000, // Cache por 1 minuto
+          });
+        }
+      );
+
+      const coords: Coordinates = {
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+      };
+
+      // Calcular distância
+      const dist = Math.sqrt(
+        Math.pow((coords.lat - addressCoords.lat) * 111000, 2) +
+          Math.pow(
+            (coords.lon - addressCoords.lon) *
+              111000 *
+              Math.cos((coords.lat * Math.PI) / 180),
+            2
+          )
+      );
+
+      // Atualizar estado
+      setVisitorCoords(coords);
+      setDistance(dist);
+
+      return { success: true, coords };
+    } catch (error: any) {
+      let errorMessage = "Erro ao obter localização";
+
+      if (error.code === error.PERMISSION_DENIED) {
+        return { success: false, error: "permission_denied" };
+      } else if (error.code === error.TIMEOUT) {
+        errorMessage =
+          "Timeout ao obter localização. Verifique se o GPS está ativado.";
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        errorMessage = "Localização indisponível. Verifique sua conexão e GPS.";
+      }
+
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const handleCallStart = async () => {
+    // Ring the doorbell when starting a voice call
+    try {
+      if (!visitorCoords) {
+        throw new Error("Localização não disponível");
+      }
+
+      const coords = {
+        lat: visitorCoords.lat,
+        lon: visitorCoords.lon,
+        acc: 20,
+      };
+
+      const result = await ApiService.ringBell(visit.uuid, coords);
+      if (!result.ok) {
+        throw new Error(result.error || "Erro ao tocar a campainha");
+      }
+    } catch (error) {
+      console.error("Error ringing bell during call start:", error);
+    }
+  };
 
   return (
     <main className="min-h-dvh flex items-center justify-center p-4">
@@ -77,13 +241,35 @@ export default function DoorbellPageClient({ visit }: Props) {
           </div>
         </div>
 
-        {/* Location Tracker */}
-        {addressCoords ? (
-          <LocationTracker
-            addressCoords={addressCoords}
-            onLocationUpdate={handleLocationUpdate}
-          />
-        ) : (
+        {/* Location Permission Warning */}
+        {locationPermissionDenied && (
+          <Card className="p-4 bg-red-50 border border-red-200">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">🔒</div>
+              <div className="flex-1">
+                <p className="font-medium text-red-800">
+                  Localização Bloqueada
+                </p>
+                <p className="text-sm text-red-600 mt-1">
+                  Para usar a campainha e chamadas de voz, você precisa permitir
+                  o acesso à localização.
+                </p>
+                <button
+                  onClick={() => {
+                    const instructions = getSimpleLocationInstructions();
+                    alert(instructions);
+                  }}
+                  className="mt-2 text-xs bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors"
+                >
+                  📍 Ver instruções para reativar
+                </button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Location Info - Apenas informativo */}
+        {!addressCoords && (
           <Card className="p-4 bg-gray-50 border border-gray-200">
             <div className="flex items-center gap-3">
               <div className="text-2xl">⚠️</div>
@@ -92,7 +278,99 @@ export default function DoorbellPageClient({ visit }: Props) {
                   📍 Localização não configurada
                 </p>
                 <p className="text-sm text-gray-500">
-                  Este endereço não possui coordenadas cadastradas
+                  Este endereço não possui coordenadas cadastradas para
+                  verificação de proximidade
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Loading state quando obtendo localização automaticamente */}
+        {addressCoords && !visitorCoords && isGettingLocationAutomatically && (
+          <Card className="p-4 bg-green-50 border border-green-200">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">
+                <span className="animate-spin">📍</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-green-800">
+                  Obtendo Localização Automaticamente
+                </p>
+                <p className="text-sm text-green-600">
+                  Permissão já concedida, verificando sua posição atual...
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Location Info - Quando há coordenadas mas ainda não verificamos proximidade */}
+        {addressCoords && !visitorCoords && !isGettingLocationAutomatically && (
+          <Card className="p-4 bg-blue-50 border border-blue-200">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">📍</div>
+              <div className="flex-1">
+                <p className="font-medium text-blue-800">
+                  Verificação de Proximidade
+                </p>
+                <p className="text-sm text-blue-600 mb-3">
+                  Sua localização será solicitada quando você tentar usar a
+                  campainha ou chamada de voz para verificar se está próximo ao
+                  endereço (máximo 50m).
+                </p>
+                <button
+                  onClick={async () => {
+                    if (isRequestingLocationManually) return;
+
+                    setIsRequestingLocationManually(true);
+                    const result = await requestLocationOnDemand();
+                    setIsRequestingLocationManually(false);
+
+                    if (
+                      !result.success &&
+                      result.error === "permission_denied"
+                    ) {
+                      // Mostrar instruções se foi negada
+                      const instructions = getSimpleLocationInstructions();
+                      alert(instructions);
+                    }
+                  }}
+                  disabled={isRequestingLocationManually}
+                  className="text-xs bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRequestingLocationManually ? (
+                    <>
+                      <span className="animate-spin inline-block mr-1">⏳</span>
+                      Solicitando...
+                    </>
+                  ) : (
+                    "📍 Ativar localização agora"
+                  )}
+                </button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Location Status - Quando já temos a localização */}
+        {visitorCoords && distance !== null && (
+          <Card
+            className={`p-4 ${distance <= 50 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">{distance <= 50 ? "✅" : "❌"}</div>
+              <div className="flex-1">
+                <p
+                  className={`font-medium ${distance <= 50 ? "text-green-800" : "text-red-800"}`}
+                >
+                  {distance <= 50 ? "Localização Verificada" : "Muito Distante"}
+                </p>
+                <p
+                  className={`text-sm ${distance <= 50 ? "text-green-600" : "text-red-600"}`}
+                >
+                  Você está a {distance.toFixed(0)}m do endereço{" "}
+                  {distance <= 50 ? "(dentro do limite)" : "(máximo: 50m)"}
                 </p>
               </div>
             </div>
@@ -119,12 +397,24 @@ export default function DoorbellPageClient({ visit }: Props) {
           visit={visit}
           visitorCoords={visitorCoords}
           distance={distance}
+          onRequestLocation={requestLocationOnDemand}
+        />
+
+        {/* Voice Call Component */}
+        <VoiceCallFirebase
+          visitUuid={visit.uuid}
+          visit={visit}
+          visitorCoords={visitorCoords}
+          distance={distance}
+          onCallStart={handleCallStart}
+          onRequestLocation={requestLocationOnDemand}
+          role="visitor"
         />
         <Separator />
         <div className="text-xs text-muted-foreground space-y-2">
           <p>
-            Ao tocar, o morador recebe uma notificação imediata. Se necessário,
-            ele pode iniciar uma conversa.
+            Ao tocar a campainha, o morador recebe uma notificação imediata. Use
+            a chamada de voz para falar diretamente com o morador.
           </p>
           <p>
             Por segurança, podemos registrar horário e localização aproximada da

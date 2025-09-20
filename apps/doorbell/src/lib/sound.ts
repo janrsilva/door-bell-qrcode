@@ -46,8 +46,10 @@ export function unlockAudio(initialFile?: string) {
     .play()
     .then(() => {
       audioEl?.pause();
-      if (audioEl) audioEl.currentTime = 0;
-      audioEl.volume = 1;
+      if (audioEl) {
+        audioEl.currentTime = 0;
+        audioEl.volume = 1;
+      }
       isUnlocked = true;
       console.log("✅ Áudio desbloqueado com sucesso");
     })

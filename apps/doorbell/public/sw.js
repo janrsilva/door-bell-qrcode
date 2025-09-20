@@ -53,10 +53,16 @@ self.addEventListener("push", (event) => {
   const tag = data.tag || "doorbell-ring";
   const icon = data.icon || "/icons/icon-192x192.png";
   const badge = data.badge || "/icons/icon-72x72.png";
+  const notificationType = data.type || "doorbell_call";
   // Som sugerido para o cliente (quando app estiver em foreground)
   const suggestedSound = data.sound || "doorbell.mp3";
 
-  console.log("📊 Dados da notificação:", { title, body, suggestedSound });
+  console.log("📊 Dados da notificação:", {
+    title,
+    body,
+    suggestedSound,
+    type: notificationType,
+  });
 
   const options = {
     body,
@@ -70,7 +76,8 @@ self.addEventListener("push", (event) => {
       suggestedSound, // Passa sugestão de som para o cliente
       visitId: data.visitId,
       timestamp: data.timestamp,
-      type: "doorbell_call",
+      type: notificationType,
+      offer: data.offer, // Para chamadas de voz, incluir a oferta WebRTC
     },
     actions: [
       {
@@ -86,8 +93,11 @@ self.addEventListener("push", (event) => {
     ],
   };
 
-  // Mostrar notificação (usa som padrão do sistema)
-  const showPromise = self.registration.showNotification(title, options);
+  // Mostrar notificação apenas se não for sinal silencioso
+  let showPromise = Promise.resolve();
+  if (!data.silent) {
+    showPromise = self.registration.showNotification(title, options);
+  }
 
   // Avisar clientes abertos para tocar som customizado (quando possível)
   const notifyClients = self.clients
@@ -97,13 +107,32 @@ self.addEventListener("push", (event) => {
         `📱 Notificando ${clients.length} clientes para som customizado`
       );
       clients.forEach((client) => {
-        client.postMessage({
-          type: "PLAY_CUSTOM_SOUND",
-          sound: suggestedSound,
-          title,
-          body,
-          tag,
-        });
+        if (notificationType === "voice_call") {
+          // Para chamadas de voz, notificar o app com dados de sinalização WebRTC
+          client.postMessage({
+            type: "WEBRTC_SIGNAL",
+            signal: data.webrtc, // Dados de sinalização (offer/answer/candidate)
+            visitId: data.visitId,
+            title,
+            body,
+          });
+        } else if (notificationType === "webrtc_signal") {
+          // Para sinais WebRTC silenciosos (answer/candidates)
+          client.postMessage({
+            type: "WEBRTC_SIGNAL",
+            signal: data.webrtc,
+            visitId: data.visitId,
+          });
+        } else {
+          // Para campainha normal
+          client.postMessage({
+            type: "PLAY_CUSTOM_SOUND",
+            sound: suggestedSound,
+            title,
+            body,
+            tag,
+          });
+        }
       });
     });
 
@@ -118,17 +147,37 @@ self.addEventListener("notificationclick", (event) => {
   const action = event.action;
   const data = event.notification.data;
 
-  if (action === "answer") {
+  if (action === "answer" || action === "answer_call") {
     // Abrir app para atender
-    event.waitUntil(
-      self.clients.openWindow(`/atendimento?call=${data.visitId}&action=answer`)
-    );
-  } else if (action === "ignore") {
+    if (data.type === "voice_call") {
+      // Para chamadas de voz, passar dados de sinalização WebRTC
+      event.waitUntil(
+        self.clients.openWindow(
+          `/atendimento?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`
+        )
+      );
+    } else {
+      // Campainha normal
+      event.waitUntil(
+        self.clients.openWindow(
+          `/atendimento?call=${data.visitId}&action=answer`
+        )
+      );
+    }
+  } else if (action === "ignore" || action === "ignore_call") {
     // Log de chamada ignorada
-    console.log("🔇 Chamada ignorada:", data.visitId);
+    console.log("🔇 Chamada ignorada:", data.visitId, "Tipo:", data.type);
   } else {
-    // Clique na notificação principal
-    event.waitUntil(self.clients.openWindow("/atendimento"));
+    // Clique na notificação principal - se for chamada de voz, abrir com dados
+    if (data.type === "voice_call") {
+      event.waitUntil(
+        self.clients.openWindow(
+          `/atendimento?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`
+        )
+      );
+    } else {
+      event.waitUntil(self.clients.openWindow("/atendimento"));
+    }
   }
 });
 

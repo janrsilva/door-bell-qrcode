@@ -27,7 +27,7 @@ export function withAuth<P extends object>(
       if (status === "unauthenticated") {
         const currentUrl = window.location.pathname;
         const loginUrl = `${redirectTo}?callbackUrl=${encodeURIComponent(currentUrl)}`;
-        router.push(loginUrl);
+        router.push(loginUrl as any);
       }
     }, [status, router]);
 
@@ -114,4 +114,3 @@ export function useAuthUser() {
     isUnauthenticated: status === "unauthenticated",
   };
 }
-

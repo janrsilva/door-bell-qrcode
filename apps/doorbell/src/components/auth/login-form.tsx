@@ -47,7 +47,7 @@ export const LoginForm: React.FC = () => {
 
     try {
       console.log("🔐 Tentando login com NextAuth...");
-      
+
       const result = await signIn("credentials", {
         cpf,
         password,
@@ -62,7 +62,7 @@ export const LoginForm: React.FC = () => {
 
       if (result?.ok) {
         console.log("✅ Login bem-sucedido com NextAuth");
-        router.push(callbackUrl);
+        router.push(callbackUrl as any);
         router.refresh();
       } else {
         setError("Erro inesperado durante o login");
@@ -121,11 +121,7 @@ export const LoginForm: React.FC = () => {
               </div>
             )}
 
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full"
-            >
+            <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? "Entrando..." : "Entrar"}
             </Button>
           </form>

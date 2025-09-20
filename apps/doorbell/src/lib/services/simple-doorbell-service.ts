@@ -1,5 +1,6 @@
 import { RegistrationFormData } from "@/lib/schemas";
 import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 
 export interface CreateVisitResult {
   success: boolean;
@@ -20,9 +21,8 @@ export class SimpleDoorbellService {
   /**
    * Get Prisma client instance
    */
-  private static async getPrisma() {
-    const { PrismaClient } = await import("@prisma/client");
-    return new PrismaClient();
+  private static getPrisma() {
+    return prisma;
   }
 
   /**
@@ -35,10 +35,10 @@ export class SimpleDoorbellService {
         addressUuid
       );
 
-      const prisma = await this.getPrisma();
+      const prismaClient = this.getPrisma();
 
       // Find address by UUID
-      const address = await prisma.address.findUnique({
+      const address = await prismaClient.address.findUnique({
         where: { addressUuid },
       });
 
@@ -49,7 +49,7 @@ export class SimpleDoorbellService {
         };
       }
 
-      const visit = await prisma.doorbellVisit.create({
+      const visit = await prismaClient.doorbellVisit.create({
         data: {
           addressId: address.id,
         },
@@ -77,10 +77,10 @@ export class SimpleDoorbellService {
     try {
       console.log("SimpleDoorbellService: Using visit:", uuid);
 
-      const prisma = await this.getPrisma();
+      const prismaClient = this.getPrisma();
 
       // Find the visit
-      const visit = await prisma.doorbellVisit.findUnique({
+      const visit = await prismaClient.doorbellVisit.findUnique({
         where: { uuid },
         include: {
           address: true,
@@ -102,7 +102,7 @@ export class SimpleDoorbellService {
       const isExpired = now > expiredAt;
 
       // Get user data
-      const user = await prisma.user.findUnique({
+      const user = await prismaClient.user.findUnique({
         where: { addressId: visit.addressId },
         include: {
           address: true,
@@ -139,8 +139,8 @@ export class SimpleDoorbellService {
     uuid: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const prisma = await this.getPrisma();
-      const visit = await prisma.doorbellVisit.findUnique({
+      const prismaClient = this.getPrisma();
+      const visit = await prismaClient.doorbellVisit.findUnique({
         where: { uuid },
       });
 

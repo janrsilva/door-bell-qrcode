@@ -8,9 +8,9 @@ export const runtime = "nodejs";
 // PUT - Atualizar usuário
 export async function PUT(
   req: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { params } = context;
+  const resolvedParams = await params;
   try {
     // Verificar autenticação
     const authUser = await getAuthUserFromRequest(req);
@@ -18,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const userId = parseInt(params.id);
+    const userId = parseInt(resolvedParams.id);
     const sessionUserId = parseInt(authUser.userId.toString());
 
     // Verificar se o usuário pode editar este cadastro
@@ -88,9 +88,9 @@ export async function PUT(
 // GET - Buscar dados do usuário
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { params } = context;
+  const resolvedParams = await params;
   try {
     // Verificar autenticação
     const authUser = await getAuthUserFromRequest(req);
@@ -98,7 +98,7 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const userId = parseInt(params.id);
+    const userId = parseInt(resolvedParams.id);
     const sessionUserId = parseInt(authUser.userId.toString());
 
     // Verificar se o usuário pode acessar este cadastro

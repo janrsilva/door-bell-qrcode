@@ -7,6 +7,18 @@ import { Card } from "@/components/ui/card";
 import ApiService from "@/lib/api";
 import { useAutoSubscription } from "@/hooks/useAutoSubscription";
 import { playSound, unlockAudio, getSoundConfig } from "@/lib/sound";
+import PWADebug from "@/components/pwa-debug";
+import { webRTCService } from "@/lib/services/webrtc-service";
+import VoiceCallFirebase from "@/components/voice-call-firebase";
+import AvailableCalls from "@/components/available-calls";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CallPageContentProps {
   user: {
@@ -45,6 +57,15 @@ export function CallPageContent({ user }: CallPageContentProps) {
   // Status PWA
   const [isPWA, setIsPWA] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [installPromptDismissed, setInstallPromptDismissed] = useState(false);
+
+  // Voice call states
+  const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
+    visitId: string;
+    offer: RTCSessionDescriptionInit;
+  } | null>(null);
+  const [showVoiceCallDialog, setShowVoiceCallDialog] = useState(false);
 
   useEffect(() => {
     // Verificar se está rodando como PWA
@@ -59,6 +80,20 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
     checkPWA();
 
+    // Verificar se já foi dispensado anteriormente (expira em 7 dias)
+    const dismissed = localStorage.getItem("pwa-install-dismissed");
+    if (dismissed) {
+      const dismissedTime = parseInt(dismissed);
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+      if (dismissedTime > sevenDaysAgo) {
+        setInstallPromptDismissed(true);
+      } else {
+        // Expirou, remover do localStorage
+        localStorage.removeItem("pwa-install-dismissed");
+      }
+    }
+
     // Subscription é gerenciada pelo hook useAutoSubscription
 
     // Event listener para installabilidade
@@ -66,24 +101,129 @@ export function CallPageContent({ user }: CallPageContentProps) {
       e.preventDefault();
       deferredPromptRef.current = e;
       setIsInstallable(true);
+
+      // Mostrar banner se não foi dispensado e não está instalado
+      if (!dismissed && !isInstalled) {
+        setTimeout(() => {
+          setShowInstallBanner(true);
+        }, 3000); // Mostrar após 3 segundos
+      }
     };
 
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    // Event listener para instalação bem-sucedida
+    const handleAppInstalled = () => {
+      console.log("PWA instalado com sucesso");
+      setIsInstalled(true);
+      setIsInstallable(false);
+      setShowInstallBanner(false);
+      localStorage.removeItem("pwa-install-dismissed");
+    };
 
     // Status online/offline
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    // Listen for WebRTC signals from service worker
+    const handleServiceWorkerMessage = async (event: MessageEvent) => {
+      if (event.data && event.data.type === "WEBRTC_SIGNAL") {
+        console.log("📞 Sinal WebRTC recebido via FCM:", event.data);
+
+        const signal = event.data.signal;
+
+        if (signal.type === "offer") {
+          // Oferta de chamada recebida - mostrar dialog
+          setIncomingVoiceCall({
+            visitId: event.data.visitId,
+            offer: signal.sdp,
+          });
+          setShowVoiceCallDialog(true);
+
+          // Play notification sound
+          try {
+            const audio = new Audio("/sounds/doorbell.mp3");
+            audio.volume = 0.8;
+            audio.play().catch(console.error);
+          } catch (error) {
+            console.error("Error playing notification sound:", error);
+          }
+        } else if (signal.type === "answer") {
+          // Resposta recebida - repassar para WebRTC service
+          // TODO: Implementar se o visitante precisar receber answer
+          console.log("📞 Answer recebido via FCM");
+        } else if (signal.type === "candidate") {
+          // ICE candidate recebido - repassar para WebRTC service
+          // TODO: Implementar se necessário
+          console.log("📞 ICE candidate recebido via FCM");
+        }
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener(
+        "message",
+        handleServiceWorkerMessage
+      );
+    }
+
+    // Check URL parameters for voice call from notification
+    const urlParams = new URLSearchParams(window.location.search);
+    const voiceCallId = urlParams.get("voiceCall");
+    const webrtcParam = urlParams.get("webrtc");
+
+    if (voiceCallId && webrtcParam) {
+      try {
+        const webrtcData = JSON.parse(decodeURIComponent(webrtcParam));
+
+        if (webrtcData.type === "offer") {
+          setIncomingVoiceCall({
+            visitId: voiceCallId,
+            offer: webrtcData.sdp,
+          });
+          setShowVoiceCallDialog(true);
+        }
+
+        // Clean URL
+        window.history.replaceState({}, "", "/atendimento");
+      } catch (error) {
+        console.error("Error parsing voice call data from URL:", error);
+      }
+    }
+
+    // Para iOS e navegadores que não suportam beforeinstallprompt
+    // Mostrar banner após 5 segundos se não está instalado e não foi dispensado
+    let fallbackTimer: NodeJS.Timeout | null = null;
+    if (!isInstalled && !dismissed) {
+      fallbackTimer = setTimeout(() => {
+        // Verificar se ainda não está instalado e não recebeu o evento
+        if (!isInstalled && !deferredPromptRef.current) {
+          setShowInstallBanner(true);
+        }
+      }, 5000);
+    }
+
     return () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+      }
       window.removeEventListener(
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
+      window.removeEventListener("appinstalled", handleAppInstalled);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener(
+          "message",
+          handleServiceWorkerMessage
+        );
+      }
     };
   }, []);
 
@@ -95,9 +235,81 @@ export function CallPageContent({ user }: CallPageContentProps) {
       if (outcome === "accepted") {
         setIsInstallable(false);
         setIsInstalled(true);
+        setShowInstallBanner(false);
+      } else {
+        // Usuário recusou, ocultar banner por um tempo
+        setShowInstallBanner(false);
+        localStorage.setItem("pwa-install-dismissed", Date.now().toString());
+        setInstallPromptDismissed(true);
       }
 
       deferredPromptRef.current = null;
+    }
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem("pwa-install-dismissed", Date.now().toString());
+    setInstallPromptDismissed(true);
+  };
+
+  // Voice call functions
+  const acceptVoiceCall = async () => {
+    if (!incomingVoiceCall) return;
+
+    try {
+      setShowVoiceCallDialog(false);
+
+      // Callback para estado da chamada
+      const onStateChange = (state: any) => {
+        console.log("📞 Estado da chamada:", state);
+        // TODO: Atualizar UI se necessário
+      };
+
+      // Callback para stream remoto
+      const onRemoteStream = (stream: MediaStream | null) => {
+        console.log("📞 Stream remoto recebido:", stream);
+        // TODO: Conectar ao elemento audio se necessário
+      };
+
+      await webRTCService.acceptCall(
+        incomingVoiceCall.visitId,
+        incomingVoiceCall.offer,
+        onStateChange,
+        onRemoteStream
+      );
+
+      setIncomingVoiceCall(null);
+    } catch (error) {
+      console.error("Error accepting voice call:", error);
+    }
+  };
+
+  const rejectVoiceCall = async () => {
+    if (!incomingVoiceCall) return;
+
+    try {
+      // Send reject message via FCM
+      await fetch("/api/webrtc-signal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          visitId: incomingVoiceCall.visitId,
+          signal: {
+            type: "call-reject",
+            visitId: incomingVoiceCall.visitId,
+            from: "resident",
+          },
+          targetType: "visitor",
+        }),
+      });
+
+      setShowVoiceCallDialog(false);
+      setIncomingVoiceCall(null);
+    } catch (error) {
+      console.error("Error rejecting voice call:", error);
     }
   };
 
@@ -280,6 +492,77 @@ export function CallPageContent({ user }: CallPageContentProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="mx-auto max-w-4xl">
+        {/* Install PWA Banner */}
+        {showInstallBanner && !isInstalled && (
+          <div className="mb-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-4 shadow-lg animate-pulse">
+            <div className="flex flex-col items-start justify-start gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="text-2xl">📲</div>
+                <div>
+                  <h3 className="font-bold text-lg">
+                    🚨 Instale o App da Campainha
+                  </h3>
+                  <p className="text-sm text-blue-100">
+                    <strong>IMPORTANTE:</strong> Receba notificações mesmo com o
+                    navegador fechado e tenha acesso mais rápido
+                  </p>
+                  {/* Instruções específicas para iOS */}
+                  {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
+                    <p className="text-xs text-blue-200 mt-1">
+                      📱 iOS: Toque no botão "Compartilhar" e depois "Adicionar
+                      à Tela de Início"
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                {deferredPromptRef.current ? (
+                  <Button
+                    onClick={installApp}
+                    className="bg-white text-blue-600 hover:bg-blue-50 font-medium"
+                    size="sm"
+                  >
+                    📲 Instalar Agora
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      // Para iOS e outros navegadores sem suporte ao beforeinstallprompt
+                      const userAgent = navigator.userAgent.toLowerCase();
+                      let instructions = "";
+
+                      if (/ipad|iphone|ipod/.test(userAgent)) {
+                        instructions =
+                          "📱 COMO INSTALAR NO iOS:\n\n1. Toque no botão 'Compartilhar' (quadrado com seta) na barra inferior\n2. Role para baixo e toque em 'Adicionar à Tela de Início'\n3. Toque em 'Adicionar' para confirmar\n\nApós isso, você terá o app na tela inicial!";
+                      } else if (userAgent.includes("android")) {
+                        instructions =
+                          "📱 COMO INSTALAR NO ANDROID:\n\n1. Toque no menu (três pontos) do navegador\n2. Toque em 'Instalar app' ou 'Adicionar à tela inicial'\n3. Confirme a instalação\n\nApós isso, você terá o app na tela inicial!";
+                      } else {
+                        instructions =
+                          "💻 COMO INSTALAR NO DESKTOP:\n\n1. Procure pelo ícone de instalação na barra de endereços\n2. OU vá no menu do navegador > 'Instalar [nome do app]'\n3. Confirme a instalação\n\nApós isso, você terá o app como aplicativo desktop!";
+                      }
+
+                      alert(instructions);
+                    }}
+                    className="bg-white text-blue-600 hover:bg-blue-50 font-medium"
+                    size="sm"
+                  >
+                    📖 Como Instalar
+                  </Button>
+                )}
+                <Button
+                  onClick={dismissInstallBanner}
+                  variant="ghost"
+                  className="text-white hover:bg-white/20"
+                  size="sm"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
@@ -343,9 +626,90 @@ export function CallPageContent({ user }: CallPageContentProps) {
           </div>
         </Card>
 
+        {/* Available Calls */}
+        <AvailableCalls
+          addressUuid={user.address.addressUuid}
+          onCallAccepted={(visitId) => {
+            console.log("Chamada aceita:", visitId);
+            // TODO: Implementar feedback visual ou notificação
+          }}
+        />
+
+        {/* WebRTC Voice Call Component */}
+        <VoiceCallFirebase
+          addressUuid={user.address.addressUuid}
+          visitorCoords={null}
+          distance={null}
+          role="resident"
+        />
+
         {/* PWA Status Card */}
         <Card className="mb-6 p-6">
           <h2 className="mb-4 text-xl font-semibold">📱 Status do PWA</h2>
+
+          {/* Banner de instalação crítico */}
+          {!isInstalled &&
+            !notificationsConfigured &&
+            !installPromptDismissed && (
+              <div className="mb-4 bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <div className="text-2xl">⚠️</div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-red-800">
+                      Instalação Recomendada
+                    </h3>
+                    <p className="text-sm text-red-700 mb-3">
+                      Para receber notificações da campainha quando o navegador
+                      estiver fechado, é <strong>altamente recomendado</strong>{" "}
+                      instalar o aplicativo.
+                    </p>
+                    <div className="flex space-x-2">
+                      {deferredPromptRef.current ? (
+                        <Button
+                          onClick={installApp}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          size="sm"
+                        >
+                          📲 Instalar Agora
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => {
+                            const userAgent = navigator.userAgent.toLowerCase();
+                            let instructions = "";
+
+                            if (/ipad|iphone|ipod/.test(userAgent)) {
+                              instructions =
+                                "📱 INSTALAR NO iOS:\n\n1. Toque no botão 'Compartilhar' (⬆️) na barra inferior\n2. Role para baixo e toque em 'Adicionar à Tela de Início'\n3. Toque em 'Adicionar'\n\n✅ O app aparecerá na sua tela inicial!";
+                            } else if (userAgent.includes("android")) {
+                              instructions =
+                                "📱 INSTALAR NO ANDROID:\n\n1. Toque no menu (⋮) do navegador\n2. Toque em 'Instalar app' ou 'Adicionar à tela inicial'\n3. Confirme a instalação\n\n✅ O app aparecerá na sua tela inicial!";
+                            } else {
+                              instructions =
+                                "💻 INSTALAR NO DESKTOP:\n\n1. Procure pelo ícone de instalação (⬇️) na barra de endereços\n2. OU vá no menu do navegador > 'Instalar aplicativo'\n3. Confirme a instalação\n\n✅ O app será instalado como aplicativo!";
+                            }
+
+                            alert(instructions);
+                          }}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          size="sm"
+                        >
+                          📖 Ver Instruções
+                        </Button>
+                      )}
+                      <Button
+                        onClick={dismissInstallBanner}
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        size="sm"
+                      >
+                        Mais tarde
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p>
@@ -432,6 +796,9 @@ export function CallPageContent({ user }: CallPageContentProps) {
           </div>
         </Card>
 
+        {/* PWA Debug */}
+        <PWADebug />
+
         {/* Test Buttons */}
         <Card className="mb-6 p-6">
           <h2 className="mb-4 text-xl font-semibold">🧪 Testes do Sistema</h2>
@@ -498,6 +865,47 @@ export function CallPageContent({ user }: CallPageContentProps) {
             </p>
           </div>
         </Card>
+
+        {/* Voice Call Dialog */}
+        <Dialog open={showVoiceCallDialog} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>📞 Chamada de Voz Recebida</DialogTitle>
+              <DialogDescription>
+                Um visitante está tentando fazer uma chamada de voz. Deseja
+                atender?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-center p-6">
+                <div className="text-6xl animate-pulse">📞</div>
+              </div>
+
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  O visitante está no portão e gostaria de falar com você
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row gap-2 justify-center">
+              <Button
+                onClick={rejectVoiceCall}
+                variant="outline"
+                className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+              >
+                ❌ Recusar
+              </Button>
+              <Button
+                onClick={acceptVoiceCall}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                📞 Atender
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

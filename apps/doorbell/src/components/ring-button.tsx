@@ -18,6 +18,7 @@ import {
   getHighAccuracyLocation,
   getCurrentLocation,
 } from "@/lib/utils/latlong";
+import { getLocationInstructions } from "@/lib/utils/location-instructions";
 
 type Props = {
   visit: {
@@ -26,9 +27,19 @@ type Props = {
   };
   visitorCoords?: Coordinates | null;
   distance?: number | null;
+  onRequestLocation?: () => Promise<{
+    success: boolean;
+    coords?: Coordinates;
+    error?: string;
+  }>;
 };
 
-export default function RingButton({ visit, visitorCoords, distance }: Props) {
+export default function RingButton({
+  visit,
+  visitorCoords,
+  distance,
+  onRequestLocation,
+}: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [ok, setOk] = useState<null | boolean>(null);
   const [msg, setMsg] = useState<string>("");
@@ -36,9 +47,60 @@ export default function RingButton({ visit, visitorCoords, distance }: Props) {
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
+  // Função para processar o toque da campainha com coordenadas específicas
+  const processRingBell = async (coords: Coordinates) => {
+    try {
+      setSubmitting(true);
+      setOk(null);
+      setMsg("🔔 Tocando campainha...");
+
+      // Optional: vibrate device for instant feedback
+      if (navigator?.vibrate) navigator.vibrate(20);
+
+      // Ring the bell using API Service
+      const result = await ApiService.ringBell(visit.uuid, {
+        lat: coords.lat,
+        lon: coords.lon,
+        acc: 20,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error || "Erro ao tocar a campainha");
+      }
+
+      setOk(true);
+      setMsg("✅ Campainha tocada com sucesso! O morador foi notificado.");
+
+      // Vibrar novamente para confirmar sucesso
+      if (navigator?.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
+
+      // Iniciar countdown de 60 segundos para poder tocar novamente
+      setCountdown(60);
+      const countdownInterval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setOk(null);
+            setMsg("");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (e: any) {
+      setOk(false);
+      setMsg(e?.message || "Falha ao tocar a campainha");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const requestLocationPermission = async () => {
     try {
       setIsRequestingLocation(true);
+
       // Verificar se geolocalização está disponível
       if (!navigator.geolocation) {
         throw new Error("Geolocalização não suportada neste navegador");
@@ -51,13 +113,43 @@ export default function RingButton({ visit, visitorCoords, distance }: Props) {
         });
 
         if (permission.state === "denied") {
-          throw new Error(
-            "Permissão de localização foi negada. Ative nas configurações do navegador."
+          // Mostrar instruções específicas para reativar
+          setShowLocationDialog(false);
+          setOk(false);
+          setMsg(
+            "🔒 Permissão negada anteriormente. Siga as instruções abaixo para reativar:"
           );
+
+          // Mostrar instruções detalhadas
+          setTimeout(() => {
+            const instructions = getLocationInstructions();
+            alert(
+              `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`
+            );
+          }, 500);
+
+          return;
         }
       }
 
-      // Tentar obter localização (isso vai disparar o prompt de permissão se necessário)
+      // Usar a função do componente pai se disponível
+      if (onRequestLocation) {
+        const result = await onRequestLocation();
+
+        if (result.success) {
+          setShowLocationDialog(false);
+
+          // Aguardar um momento e então tocar a campainha diretamente
+          setTimeout(async () => {
+            await processRingBell(result.coords!);
+          }, 300);
+          return;
+        } else {
+          throw new Error(result.error || "Erro ao obter localização");
+        }
+      }
+
+      // Fallback: tentar obter localização diretamente
       const coords = await getCurrentLocation({
         enableHighAccuracy: true,
         timeout: 15000,
@@ -68,27 +160,39 @@ export default function RingButton({ visit, visitorCoords, distance }: Props) {
       setOk(null);
       setMsg("✅ Localização permitida! Tente tocar a campainha novamente.");
 
-      // Aguardar um momento para mostrar a mensagem
+      // Aguardar um momento para mostrar a mensagem e recarregar para atualizar o estado
       setTimeout(() => {
-        setMsg("");
-      }, 3000);
+        window.location.reload();
+      }, 2000);
     } catch (error: any) {
       setOk(false);
+      setShowLocationDialog(false);
 
       // Mensagens de erro mais específicas
       let errorMessage = error.message;
-      if (error.message.includes("denied")) {
+      if (
+        error.message.includes("denied") ||
+        error.message.includes("User denied")
+      ) {
         errorMessage =
-          "Permissão negada. Ative a localização nas configurações do navegador.";
+          "🔒 Permissão negada. Siga as instruções que aparecerão para reativar.";
+
+        // Mostrar instruções após um momento
+        setTimeout(() => {
+          const instructions = getLocationInstructions();
+          alert(
+            `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`
+          );
+        }, 1000);
       } else if (error.message.includes("timeout")) {
         errorMessage =
-          "Timeout ao obter localização. Verifique se o GPS está ativado.";
+          "⏰ Timeout ao obter localização. Verifique se o GPS está ativado.";
       } else if (error.message.includes("unavailable")) {
-        errorMessage = "Localização indisponível. Verifique sua conexão e GPS.";
+        errorMessage =
+          "📍 Localização indisponível. Verifique sua conexão e GPS.";
       }
 
-      setMsg(`Erro: ${errorMessage}`);
-      setShowLocationDialog(false);
+      setMsg(errorMessage);
     } finally {
       setIsRequestingLocation(false);
     }
@@ -99,6 +203,7 @@ export default function RingButton({ visit, visitorCoords, distance }: Props) {
 
     // Verificar se há localização disponível
     if (!visitorCoords) {
+      // Sempre mostrar o modal explicativo primeiro
       setShowLocationDialog(true);
       return;
     }
@@ -236,7 +341,8 @@ export default function RingButton({ visit, visitorCoords, distance }: Props) {
             <DialogTitle>📍 Permissão de Localização Necessária</DialogTitle>
             <DialogDescription>
               Para tocar a campainha, precisamos verificar se você está próximo
-              ao endereço (máximo 50 metros).
+              ao endereço (máximo 50 metros). Após permitir, a campainha será
+              tocada automaticamente.
             </DialogDescription>
           </DialogHeader>
 

@@ -101,7 +101,7 @@ export function useAutoSubscription() {
 
         // Cancelar subscription anterior se existir
         if (existingSubscription) {
-          await existingSubscription.unsubscribe();
+          await (existingSubscription as any).unsubscribe();
         }
 
         // Criar nova subscription

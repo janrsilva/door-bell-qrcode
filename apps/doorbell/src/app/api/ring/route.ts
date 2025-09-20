@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
         console.log("🔍 Debug subscriptions store:");
 
         // Debug: listar todas as subscriptions
-        const allSubscriptions = getActiveSubscriptions();
+        const allSubscriptions = await getActiveSubscriptions();
         console.log(
           `📊 Total de subscriptions no sistema: ${allSubscriptions.length}`
         );
@@ -270,10 +270,35 @@ export async function POST(req: NextRequest) {
             return { success: true, endpoint: subscription.endpoint };
           } catch (error: any) {
             console.error("❌ Erro ao enviar push para dispositivo:", error);
+
+            // Se subscription expirou (410), marcar como inativa
+            if (error.statusCode === 410) {
+              console.log(
+                "🗑️ Subscription expirada - marcando como inativa:",
+                subscription.endpoint.substring(0, 30) + "..."
+              );
+              try {
+                const { PrismaClient } = await import("@prisma/client");
+                const prisma = new PrismaClient();
+                await prisma.pushSubscription.updateMany({
+                  where: { endpoint: subscription.endpoint },
+                  data: { isActive: false },
+                });
+                await prisma.$disconnect();
+                console.log("✅ Subscription marcada como inativa");
+              } catch (dbError) {
+                console.error(
+                  "❌ Erro ao marcar subscription como inativa:",
+                  dbError
+                );
+              }
+            }
+
             return {
               success: false,
               error: error.message,
               endpoint: subscription.endpoint,
+              statusCode: error.statusCode,
             };
           }
         });

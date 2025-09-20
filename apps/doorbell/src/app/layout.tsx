@@ -7,9 +7,6 @@ export const metadata: Metadata = {
   title: "Campainha Eletrônica",
   description: "Toque a campainha de forma simples e rápida.",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
-  viewport:
-    "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -24,6 +21,14 @@ export const metadata: Metadata = {
     "msapplication-TileColor": "#3b82f6",
     "msapplication-config": "/browserconfig.xml",
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#3b82f6",
 };
 
 export default function RootLayout({
