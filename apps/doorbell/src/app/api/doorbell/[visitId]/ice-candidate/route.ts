@@ -5,16 +5,16 @@ import { prisma } from "@/lib/db";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { visitId: string } }
+  { params }: { params: Promise<{ visitId: string }> },
 ) {
   try {
-    const visitId = params.visitId;
+    const { visitId } = await params;
     const body = await request.json();
 
     if (!body.candidate) {
       return NextResponse.json(
         { error: "Candidate é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -42,7 +42,7 @@ export async function POST(
     // Nova estrutura: addresses/{addressUuid}/visits/{visitUuid}
     const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
     const onCallVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/onCallVisit`
+      `addresses/${visit.address.addressUuid}/onCallVisit`,
     );
     const addressVisitCandidatesRef = addressRef
       .child(`visits/${visitId}`)
@@ -67,7 +67,7 @@ export async function POST(
     console.error("❌ [ICE_API] Erro ao salvar ICE candidate:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

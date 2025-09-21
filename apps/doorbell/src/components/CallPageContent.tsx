@@ -8,7 +8,7 @@ import ApiService from "@/lib/api";
 import { useAutoSubscription } from "@/hooks/useAutoSubscription";
 import { playSound, unlockAudio, getSoundConfig } from "@/lib/sound";
 import PWADebug from "@/components/pwa-debug";
-import { webRTCService } from "@/lib/services/webrtc-service";
+// import { webRTCService } from "@/lib/services/webrtc-service"; // REMOVIDO
 import VoiceCallFirebase from "@/components/voice-call-firebase";
 import AvailableCalls from "@/components/available-calls";
 import {
@@ -71,7 +71,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
     // Verificar se está rodando como PWA
     const checkPWA = () => {
       const isStandalone = window.matchMedia(
-        "(display-mode: standalone)"
+        "(display-mode: standalone)",
       ).matches;
       const isIOSPWA = (window.navigator as any).standalone === true;
       setIsPWA(isStandalone || isIOSPWA);
@@ -153,11 +153,9 @@ export function CallPageContent({ user }: CallPageContentProps) {
           }
         } else if (signal.type === "answer") {
           // Resposta recebida - repassar para WebRTC service
-          // TODO: Implementar se o visitante precisar receber answer
           console.log("📞 Answer recebido via FCM");
         } else if (signal.type === "candidate") {
           // ICE candidate recebido - repassar para WebRTC service
-          // TODO: Implementar se necessário
           console.log("📞 ICE candidate recebido via FCM");
         }
       }
@@ -166,7 +164,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener(
         "message",
-        handleServiceWorkerMessage
+        handleServiceWorkerMessage,
       );
     }
 
@@ -212,7 +210,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
       }
       window.removeEventListener(
         "beforeinstallprompt",
-        handleBeforeInstallPrompt
+        handleBeforeInstallPrompt,
       );
       window.removeEventListener("appinstalled", handleAppInstalled);
       window.removeEventListener("online", handleOnline);
@@ -221,7 +219,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.removeEventListener(
           "message",
-          handleServiceWorkerMessage
+          handleServiceWorkerMessage,
         );
       }
     };
@@ -253,30 +251,15 @@ export function CallPageContent({ user }: CallPageContentProps) {
     setInstallPromptDismissed(true);
   };
 
-  // Voice call functions
+  // Voice call functions - DESABILITADO (usando voice-call-firebase agora)
   const acceptVoiceCall = async () => {
     if (!incomingVoiceCall) return;
 
     try {
       setShowVoiceCallDialog(false);
 
-      // Callback para estado da chamada
-      const onStateChange = (state: any) => {
-        console.log("📞 Estado da chamada:", state);
-        // TODO: Atualizar UI se necessário
-      };
-
-      // Callback para stream remoto
-      const onRemoteStream = (stream: MediaStream | null) => {
-        console.log("📞 Stream remoto recebido:", stream);
-        // TODO: Conectar ao elemento audio se necessário
-      };
-
-      await webRTCService.acceptCall(
-        incomingVoiceCall.visitId,
-        incomingVoiceCall.offer,
-        onStateChange,
-        onRemoteStream
+      console.log(
+        "📞 Funcionalidade de chamada antiga desabilitada - usando voice-call-firebase",
       );
 
       setIncomingVoiceCall(null);
@@ -476,7 +459,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
       console.log("🗑️ localStorage e sessionStorage limpos");
 
       alert(
-        "✅ PWA atualizado! A página será recarregada em 2 segundos para aplicar as mudanças."
+        "✅ PWA atualizado! A página será recarregada em 2 segundos para aplicar as mudanças.",
       );
 
       // Recarregar página para reinstalar SW
@@ -631,7 +614,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
           addressUuid={user.address.addressUuid}
           onCallAccepted={(visitId: string) => {
             console.log("Chamada aceita:", visitId);
-            // TODO: Implementar feedback visual ou notificação
           }}
         />
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DoorbellService } from "@/lib/services/doorbell-service";
+import { SimpleDoorbellService } from "@/lib/services/simple-doorbell-service";
 
 export const runtime = "nodejs";
 
@@ -10,24 +10,22 @@ export async function POST(req: NextRequest) {
     if (!uuid) {
       return NextResponse.json(
         { error: "UUID é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    console.log("API Create Visit: Creating visit for UUID:", uuid);
-
-    const result = await DoorbellService.createVisit(uuid);
+    const result = await SimpleDoorbellService.createVisit(uuid);
 
     if (!result.success || !result.visit) {
       return NextResponse.json(
         { error: result.error || "Erro ao criar visita" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json({
       success: true,
-      visitId: result.visit.id,
+      visitId: result.visit.uuid,
       message: "Visita criada com sucesso",
     });
   } catch (error: any) {
@@ -38,7 +36,7 @@ export async function POST(req: NextRequest) {
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

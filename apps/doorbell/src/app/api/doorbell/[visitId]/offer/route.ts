@@ -6,9 +6,9 @@ import { prisma } from "@/lib/db";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { visitId: string } }
+  { params }: { params: Promise<{ visitId: string }> },
 ) {
-  const { visitId } = params;
+  const { visitId } = await params;
 
   if (!visitId) {
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
@@ -24,7 +24,7 @@ export async function POST(
   if (!body?.sdp) {
     return NextResponse.json(
       { error: "Missing field 'sdp' in request body" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -78,7 +78,7 @@ export async function POST(
 
     const { devicesNotified, reason } = await notifyResidentOfferAvailable(
       visitId,
-      visit.addressId
+      visit.addressId,
     );
 
     return NextResponse.json({
@@ -92,7 +92,7 @@ export async function POST(
     console.error("❌ Error saving offer to Firebase", error);
     return NextResponse.json(
       { error: "Internal server error", details: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

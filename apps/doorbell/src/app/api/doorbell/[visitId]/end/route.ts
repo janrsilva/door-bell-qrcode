@@ -5,9 +5,9 @@ import { prisma } from "@/lib/db";
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { visitId: string } }
+  { params }: { params: Promise<{ visitId: string }> },
 ) {
-  const { visitId } = params;
+  const { visitId } = await params;
 
   if (!visitId) {
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
@@ -29,10 +29,10 @@ export async function POST(
     const db = getDatabase(app);
 
     const addressVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/visits/${visitId}`
+      `addresses/${visit.address.addressUuid}/visits/${visitId}`,
     );
     const onCallVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/onCallVisit`
+      `addresses/${visit.address.addressUuid}/onCallVisit`,
     );
 
     await Promise.all([
@@ -52,7 +52,7 @@ export async function POST(
     console.error("❌ Error ending call in Firebase", error);
     return NextResponse.json(
       { error: "Internal server error", details: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

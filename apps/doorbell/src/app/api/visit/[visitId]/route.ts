@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { DoorbellService } from "@/lib/services/doorbell-service";
+import { SimpleDoorbellService } from "@/lib/services/simple-doorbell-service";
 
 export const runtime = "nodejs";
 
@@ -9,29 +9,22 @@ export async function GET(
 ) {
   try {
     const { visitId } = await params;
-    const visitIdNumber = parseInt(visitId, 10);
 
-    if (isNaN(visitIdNumber)) {
+
+    const result = await SimpleDoorbellService.getVisit(visitId);
+
+    if (!result.success) {
       return NextResponse.json(
-        { error: "ID da visita inválido" },
-        { status: 400 }
-      );
-    }
-
-    console.log("API Visit: Getting visit data for ID:", visitIdNumber);
-
-    const visit = await DoorbellService.findVisitByUuid(visitId);
-
-    if (!visit) {
-      return NextResponse.json(
-        { error: "Visita não encontrada" },
+        { error: result.error || "Visita não encontrada" },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      visit,
+      visit: result.visit,
+      expiredAt: result.expiredAt,
+      isExpired: result.isExpired,
     });
   } catch (error: any) {
     console.error("Erro ao buscar visita:", error);

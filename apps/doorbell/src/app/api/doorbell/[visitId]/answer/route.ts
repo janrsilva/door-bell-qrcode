@@ -4,9 +4,9 @@ import { getFirebaseAdminApp } from "@/lib/firebase-admin";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { visitId: string } }
+  { params }: { params: Promise<{ visitId: string }> },
 ) {
-  const { visitId } = params;
+  const { visitId } = await params;
 
   if (!visitId) {
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
@@ -22,7 +22,7 @@ export async function POST(
   if (!body?.sdp) {
     return NextResponse.json(
       { error: "Missing field 'sdp' in request body" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -50,7 +50,7 @@ export async function POST(
     });
 
     const onCallVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/onCallVisit`
+      `addresses/${visit.address.addressUuid}/onCallVisit`,
     );
     const addressVisitRef = db
       .ref(`addresses/${visit.address.addressUuid}`)
@@ -80,7 +80,7 @@ export async function POST(
     console.error("❌ Error saving answer to Firebase", error);
     return NextResponse.json(
       { error: "Internal server error", details: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

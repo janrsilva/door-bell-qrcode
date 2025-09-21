@@ -84,7 +84,7 @@ export default function VoiceCallFirebase(props: Props) {
         console.error("❌ Falha ao enviar ICE candidate:", error);
       }
     },
-    [role]
+    [role],
   );
 
   const {
@@ -119,15 +119,15 @@ export default function VoiceCallFirebase(props: Props) {
     if (localStream && localVideoRef.current) {
       console.log(
         "🎥 [VOICE_CALL] Configurando stream local no vídeo:",
-        localStream
+        localStream,
       );
       console.log(
         "🎥 [VOICE_CALL] Audio tracks locais:",
-        localStream.getAudioTracks()
+        localStream.getAudioTracks(),
       );
       console.log(
         "🎥 [VOICE_CALL] Video tracks locais:",
-        localStream.getVideoTracks()
+        localStream.getVideoTracks(),
       );
       localVideoRef.current.srcObject = localStream;
     }
@@ -137,15 +137,15 @@ export default function VoiceCallFirebase(props: Props) {
     if (remoteStream && remoteVideoRef.current) {
       console.log(
         "🎥 [VOICE_CALL] Configurando stream remoto no vídeo:",
-        remoteStream
+        remoteStream,
       );
       console.log(
         "🎥 [VOICE_CALL] Audio tracks remotos:",
-        remoteStream.getAudioTracks()
+        remoteStream.getAudioTracks(),
       );
       console.log(
         "🎥 [VOICE_CALL] Video tracks remotos:",
-        remoteStream.getVideoTracks()
+        remoteStream.getVideoTracks(),
       );
       remoteVideoRef.current.srcObject = remoteStream;
     }
@@ -179,7 +179,7 @@ export default function VoiceCallFirebase(props: Props) {
         if (visitId) {
           try {
             console.log(
-              `🔚 [CLEANUP] Encerrando chamada para visitId: ${visitId}`
+              `🔚 [CLEANUP] Encerrando chamada para visitId: ${visitId}`,
             );
             const response = await fetch(`/api/doorbell/${visitId}/end`, {
               method: "POST",
@@ -190,7 +190,7 @@ export default function VoiceCallFirebase(props: Props) {
               console.error("❌ Falha ao encerrar chamada via API:", payload);
             } else {
               console.log(
-                "✅ [CLEANUP] Chamada encerrada com sucesso no servidor"
+                "✅ [CLEANUP] Chamada encerrada com sucesso no servidor",
               );
             }
           } catch (error) {
@@ -198,7 +198,7 @@ export default function VoiceCallFirebase(props: Props) {
           }
         } else {
           console.warn(
-            "⚠️ [CLEANUP] Nenhum visitId encontrado para encerrar chamada"
+            "⚠️ [CLEANUP] Nenhum visitId encontrado para encerrar chamada",
           );
         }
       }
@@ -207,7 +207,7 @@ export default function VoiceCallFirebase(props: Props) {
         setVisitData(null);
       }
     },
-    [reset, role, startVisitUuid, visitData?.uuid]
+    [reset, role, startVisitUuid, visitData?.uuid],
   );
 
   const handleEndCall = useCallback(async () => {
@@ -241,7 +241,7 @@ export default function VoiceCallFirebase(props: Props) {
       // Se onCallVisit for null/undefined, encerrar automaticamente
       if (!onCallVisitId) {
         console.log(
-          "🔚 [RESIDENT] onCallVisit removido - encerrando chamada automaticamente"
+          "🔚 [RESIDENT] onCallVisit removido - encerrando chamada automaticamente",
         );
         void cleanupCall(false, "Chamada encerrada pelo outro lado");
       }
@@ -295,7 +295,7 @@ export default function VoiceCallFirebase(props: Props) {
     const db = getFirebaseRealtimeDatabase();
     const visitRef = ref(
       db,
-      `addresses/${addressUuid}/visits/${startVisitUuid}`
+      `addresses/${addressUuid}/visits/${startVisitUuid}`,
     );
 
     const unsubscribe = onValue(visitRef, (snapshot) => {
@@ -303,7 +303,7 @@ export default function VoiceCallFirebase(props: Props) {
 
       if (visitData?.status === "ended") {
         console.log(
-          "🔚 [VISITOR] Visita encerrada detectada - encerrando chamada automaticamente"
+          "🔚 [VISITOR] Visita encerrada detectada - encerrando chamada automaticamente",
         );
         void cleanupCall(false, "Chamada encerrada pelo outro lado");
       }
@@ -385,7 +385,7 @@ export default function VoiceCallFirebase(props: Props) {
       // Se não há peer connection ativa, armazenar para aplicar depois
       if (connectionState === "unset") {
         console.log(
-          "🧊 [VOICE_CALL] ICE candidate pendente - aguardando peer connection"
+          "🧊 [VOICE_CALL] ICE candidate pendente - aguardando peer connection",
         );
         pendingIceCandidatesRef.current.push(candidate);
         return;
@@ -404,7 +404,7 @@ export default function VoiceCallFirebase(props: Props) {
       pendingIceCandidatesRef.current.length > 0
     ) {
       console.log(
-        `🧊 [VOICE_CALL] Aplicando ${pendingIceCandidatesRef.current.length} ICE candidates pendentes`
+        `🧊 [VOICE_CALL] Aplicando ${pendingIceCandidatesRef.current.length} ICE candidates pendentes`,
       );
 
       const candidatesToApply = [...pendingIceCandidatesRef.current];
@@ -485,7 +485,7 @@ export default function VoiceCallFirebase(props: Props) {
         setIsBusy(false);
       }
     },
-    [ensureVisitId, setError]
+    [ensureVisitId, setError],
   );
 
   const postAnswer = useCallback(
@@ -519,7 +519,7 @@ export default function VoiceCallFirebase(props: Props) {
         setIsBusy(false);
       }
     },
-    [ensureVisitId, setError]
+    [ensureVisitId, setError],
   );
 
   const handleStartCall = useCallback(async () => {
@@ -645,7 +645,7 @@ export default function VoiceCallFirebase(props: Props) {
         value: iceGatheringState,
       },
     ],
-    [connectionState, iceState, iceGatheringState]
+    [connectionState, iceState, iceGatheringState],
   );
 
   const callAllowed =

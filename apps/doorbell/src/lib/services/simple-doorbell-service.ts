@@ -1,6 +1,5 @@
 import { RegistrationFormData } from "@/lib/schemas";
 import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
-import { prisma } from "@/lib/db";
 
 export interface CreateVisitResult {
   success: boolean;
@@ -21,8 +20,9 @@ export class SimpleDoorbellService {
   /**
    * Get Prisma client instance
    */
-  private static getPrisma() {
-    return prisma;
+  private static async getPrisma() {
+    const { PrismaClient } = await import("@prisma/client");
+    return new PrismaClient();
   }
 
   /**
@@ -30,15 +30,10 @@ export class SimpleDoorbellService {
    */
   static async createVisit(addressUuid: string): Promise<CreateVisitResult> {
     try {
-      console.log(
-        "SimpleDoorbellService: Creating visit for address:",
-        addressUuid
-      );
-
-      const prismaClient = this.getPrisma();
+      const prisma = await this.getPrisma();
 
       // Find address by UUID
-      const address = await prismaClient.address.findUnique({
+      const address = await prisma.address.findUnique({
         where: { addressUuid },
       });
 
@@ -49,13 +44,11 @@ export class SimpleDoorbellService {
         };
       }
 
-      const visit = await prismaClient.doorbellVisit.create({
+      const visit = await prisma.doorbellVisit.create({
         data: {
           addressId: address.id,
         },
       });
-
-      console.log("SimpleDoorbellService: Visit created successfully:", visit);
 
       return {
         success: true,
@@ -75,12 +68,10 @@ export class SimpleDoorbellService {
    */
   static async getVisit(uuid: string): Promise<GetVisitResult> {
     try {
-      console.log("SimpleDoorbellService: Using visit:", uuid);
-
-      const prismaClient = this.getPrisma();
+      const prisma = await this.getPrisma();
 
       // Find the visit
-      const visit = await prismaClient.doorbellVisit.findUnique({
+      const visit = await prisma.doorbellVisit.findUnique({
         where: { uuid },
         include: {
           address: true,
@@ -97,23 +88,16 @@ export class SimpleDoorbellService {
       // Calculate expiry information
       const now = new Date();
       const expiredAt = new Date(
-        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS
+        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS,
       );
       const isExpired = now > expiredAt;
 
       // Get user data
-      const user = await prismaClient.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { addressId: visit.addressId },
         include: {
           address: true,
         },
-      });
-
-      console.log("SimpleDoorbellService: Visit retrieved:", {
-        uuid: visit.uuid,
-        createdAt: visit.createdAt,
-        expiredAt,
-        isExpired,
       });
 
       return {
@@ -136,11 +120,11 @@ export class SimpleDoorbellService {
    * Ring the doorbell (simplified version)
    */
   static async ringBell(
-    uuid: string
+    uuid: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const prismaClient = this.getPrisma();
-      const visit = await prismaClient.doorbellVisit.findUnique({
+      const prisma = await this.getPrisma();
+      const visit = await prisma.doorbellVisit.findUnique({
         where: { uuid },
       });
 
@@ -154,7 +138,7 @@ export class SimpleDoorbellService {
       // Check if visit has expired
       const now = new Date();
       const expiredAt = new Date(
-        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS
+        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS,
       );
 
       if (now > expiredAt) {
@@ -164,8 +148,6 @@ export class SimpleDoorbellService {
             "Esta visita expirou. Por favor, escaneie o QR Code novamente.",
         };
       }
-
-      console.log("SimpleDoorbellService: Bell rung for visit:", uuid);
 
       return {
         success: true,

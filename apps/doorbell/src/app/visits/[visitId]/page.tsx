@@ -43,7 +43,7 @@ export default async function UseVisitPage({ params }: Props) {
           <div>
             <h1 className="text-2xl font-semibold text-red-600">Erro</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Erro interno do servidor. Tente novamente.
+              Erro interno do servidor
             </p>
           </div>
         </Card>

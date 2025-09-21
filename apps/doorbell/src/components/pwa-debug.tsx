@@ -71,7 +71,7 @@ export default function PWADebug() {
           });
           info.permissions.geolocation = geolocationPermission.state;
         } catch (error) {
-          info.permissions.error = error.toString();
+          info.permissions.error = String(error);
         }
       }
 
@@ -165,4 +165,3 @@ export default function PWADebug() {
     </Card>
   );
 }
-
