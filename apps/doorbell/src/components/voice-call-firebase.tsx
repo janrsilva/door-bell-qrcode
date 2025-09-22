@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
 import { useDoorbellWebRTC } from "@/hooks/useDoorbellWebRTC";
+import { useCallingSound } from "@/hooks/useCallingSound";
 import { type Coordinates } from "@/lib/utils/latlong";
 
 interface VisitSnapshot {
@@ -161,6 +162,15 @@ export default function VoiceCallFirebase(props: Props) {
   const [visitData, setVisitData] = useState<VisitSnapshot | null>(null);
   const endedProcessedRef = useRef(false);
 
+  // Hook para reproduzir som de chamada (apenas para visitor)
+  useCallingSound({
+    isCalling:
+      role === "visitor" &&
+      (callState === "calling" || callState === "ringing"),
+    isConnected: callState === "connected",
+    soundFile: "calling-ring.mp3",
+  });
+
   const cleanupCall = useCallback(
     async (updateFirebase: boolean, message: string) => {
       setStatusMessage(message);
@@ -213,6 +223,11 @@ export default function VoiceCallFirebase(props: Props) {
   const handleEndCall = useCallback(async () => {
     console.log("🔚 [END_CALL] Encerrando chamada de ambos os lados...");
     await cleanupCall(true, "Chamada encerrada");
+  }, [cleanupCall]);
+
+  const handleCancelCall = useCallback(async () => {
+    console.log("❌ [CANCEL_CALL] Cancelando chamada de ambos os lados...");
+    await cleanupCall(true, "Chamada cancelada");
   }, [cleanupCall]);
 
   useEffect(() => {
@@ -709,11 +724,33 @@ export default function VoiceCallFirebase(props: Props) {
         <div className="space-y-3">
           <Button
             onClick={handleStartCall}
-            disabled={!callAllowed || isBusy || isWaitingForAnswer}
+            disabled={
+              !callAllowed ||
+              isBusy ||
+              isWaitingForAnswer ||
+              callState === "calling" ||
+              callState === "ringing"
+            }
             className="w-full"
           >
-            {callState === "connected" ? "✅ Conectado" : "📞 Iniciar Chamada"}
+            {callState === "connected"
+              ? "✅ Conectado"
+              : callState === "calling" || callState === "ringing"
+                ? "📞 Chamando..."
+                : "📞 Iniciar Chamada"}
           </Button>
+
+          {/* Botão de cancelar chamada - aparece quando está chamando */}
+          {(callState === "calling" || callState === "ringing") && (
+            <Button
+              onClick={handleCancelCall}
+              variant="destructive"
+              className="w-full"
+            >
+              ❌ Cancelar Chamada
+            </Button>
+          )}
+
           <div className="flex gap-2 justify-between text-xs text-muted-foreground">
             {infoCards.map((item) => (
               <span key={item.label}>
