@@ -10,7 +10,8 @@ import { type Coordinates } from "@/lib/utils/latlong";
 import ApiService from "@/lib/api";
 import { getSimpleLocationInstructions } from "@/lib/utils/location-instructions";
 import { useAddress } from "@/contexts/AddressContext";
-import AddressBlock from "./AdressBlock";
+import { MAX_DISTANCE } from "@/lib/utils/location-validation";
+import AddressBlock from "@/components/AdressBlock";
 
 type Props = {
   visit: {
@@ -204,32 +205,13 @@ export default function DoorbellPageClient({ visit }: Props) {
     <main className="min-h-dvh flex items-center justify-center p-4">
       <Card className="max-w-md w-full p-5 space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold">Campainha eletrônica</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Você está no portão do endereço deste QR. Toque a campainha para
-            alertar o morador agora.
-          </p>
+          <h1 className="text-2xl text-center font-semibold">
+            CAMPAINHA ELETRÔNICA
+          </h1>
         </div>
 
         <Separator />
-
-        {/* Address Display */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">
-            📍 Endereço do QR Code:
-          </h3>
-          <div className="text-blue-800">
-            <p className="font-medium">
-              {visit.address.street}, {visit.address.number}
-              {visit.address.complement && `, ${visit.address.complement}`}
-            </p>
-            <p className="text-sm">
-              {visit.address.neighborhood} - {visit.address.city}/
-              {visit.address.state}
-            </p>
-            <p className="text-xs mt-1">CEP: {visit.address.zipCode}</p>
-          </div>
-        </div>
+        <AddressBlock addressData={visit.address} />
 
         {/* Location Permission Warning */}
         {locationPermissionDenied && (
@@ -354,13 +336,17 @@ export default function DoorbellPageClient({ visit }: Props) {
                 <p
                   className={`font-medium ${distance <= 50 ? "text-green-800" : "text-red-800"}`}
                 >
-                  {distance <= 50 ? "Localização Verificada" : "Muito Distante"}
+                  {distance <= MAX_DISTANCE
+                    ? "Localização Verificada"
+                    : "Muito Distante"}
                 </p>
                 <p
-                  className={`text-sm ${distance <= 50 ? "text-green-600" : "text-red-600"}`}
+                  className={`text-sm ${distance <= MAX_DISTANCE ? "text-green-600" : "text-red-600"}`}
                 >
                   Você está a {distance.toFixed(0)}m do endereço{" "}
-                  {distance <= 50 ? "(dentro do limite)" : "(máximo: 50m)"}
+                  {distance <= MAX_DISTANCE
+                    ? "(dentro do limite)"
+                    : `(máximo: ${MAX_DISTANCE}m)`}
                 </p>
               </div>
             </div>
@@ -372,11 +358,11 @@ export default function DoorbellPageClient({ visit }: Props) {
             <div className="text-yellow-600 mt-0.5">⚠️</div>
             <div>
               <p className="text-yellow-800 font-medium text-sm">
-                Confirme o endereço
+                SEMPRE CONFIRME O ENDEREÇO
               </p>
               <p className="text-yellow-700 text-xs mt-1">
-                Só toque a campainha se você estiver no endereço correto acima.
-                Se estiver em outro local, não interaja com este QR Code.
+                <strong>Evite fraudes! </strong>
+                Só toque a campainha se você estiver no endereço correto.
               </p>
             </div>
           </div>

@@ -10,6 +10,10 @@ import { useCallingSound } from "@/hooks/useCallingSound";
 import { FullscreenVideo } from "@/components/FullscreenVideo";
 import { type Coordinates } from "@/lib/utils/latlong";
 import { useAddress } from "@/contexts/AddressContext";
+import {
+  MAX_DISTANCE,
+  validateLocationFrontend,
+} from "@/lib/utils/location-validation";
 
 interface VisitSnapshot {
   uuid?: string;
@@ -41,6 +45,8 @@ interface Props {
     uuid: string;
     address: {
       addressUuid: string;
+      latitude?: number;
+      longitude?: number;
     };
   };
   visitorCoords: Coordinates | null;
@@ -58,6 +64,7 @@ export default function VoiceCallFirebase(props: Props) {
     role,
     addressUuid,
     startVisitUuid,
+    visit,
     visitorCoords,
     distance,
     onCallStart,
@@ -414,12 +421,30 @@ export default function VoiceCallFirebase(props: Props) {
       try {
         setIsBusy(true);
         setStatusMessage("Enviando offer...");
+
+        // Obter localização atual do visitante
+        let coords = visitorCoords;
+        if (!coords && onRequestLocation) {
+          const locationResult = await onRequestLocation();
+          if (!locationResult.success || !locationResult.coords) {
+            throw new Error("Localização necessária para iniciar chamada");
+          }
+          coords = locationResult.coords;
+        }
+
+        if (!coords) {
+          throw new Error("Coordenadas não disponíveis");
+        }
+
         const response = await fetch(`/api/doorbell/${id}/offer`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ sdp: offer.sdp }),
+          body: JSON.stringify({
+            sdp: offer.sdp,
+            coords: coords,
+          }),
         });
 
         const payload = await response.json().catch(() => ({}));
@@ -483,17 +508,38 @@ export default function VoiceCallFirebase(props: Props) {
       throw new Error("visitId não definido");
     }
 
-    if (!visitorCoords && onRequestLocation) {
+    // Obter coordenadas do visitante
+    let currentCoords = visitorCoords;
+    if (!currentCoords && onRequestLocation) {
       const result = await onRequestLocation();
-      if (!result.success) {
+      if (!result.success || !result.coords) {
         setError("Localização necessária para iniciar chamada");
         return;
       }
+      currentCoords = result.coords;
     }
 
-    if (distance !== null && distance > 50) {
-      setError("Você está muito longe do endereço (máximo 50m)");
+    if (!currentCoords) {
+      setError("Coordenadas não disponíveis");
       return;
+    }
+
+    // Validar proximidade com o endereço
+    if (visit?.address?.latitude && visit?.address?.longitude) {
+      const addressCoords = {
+        lat: visit.address.latitude,
+        lon: visit.address.longitude,
+      };
+
+      const isValidLocation = validateLocationFrontend(
+        currentCoords,
+        addressCoords,
+      );
+
+      if (!isValidLocation) {
+        setError(`Você está muito longe do endereço (máximo ${MAX_DISTANCE}m)`);
+        return;
+      }
     }
 
     try {
@@ -533,13 +579,14 @@ export default function VoiceCallFirebase(props: Props) {
     }
   }, [
     role,
-    onRequestLocation,
+    startVisitUuid,
+    visit,
     visitorCoords,
-    distance,
+    onRequestLocation,
+    setError,
     ensureLocalStream,
     createOffer,
     postOffer,
-    setError,
     onCallStart,
   ]);
 
@@ -603,7 +650,8 @@ export default function VoiceCallFirebase(props: Props) {
 
   const callAllowed =
     role === "visitor"
-      ? visitorCoords !== null && (distance === null || distance <= 50)
+      ? visitorCoords !== null &&
+        (distance === null || distance <= MAX_DISTANCE)
       : Boolean(visitData?.uuid);
 
   const renderStreams = hasLocalStream || hasRemoteStream;
@@ -627,116 +675,122 @@ export default function VoiceCallFirebase(props: Props) {
           onEndCall={handleEndCall}
         />
       ) : (
-        <Card className="p-4 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">📞</div>
-            <div>
-              <h3 className="font-semibold">
-                {role === "visitor" ? "Chamada de Voz" : "Atendimento"}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {role === "visitor"
-                  ? "Fale diretamente com o morador"
-                  : "Atenda chamadas dos visitantes"}
-              </p>
-            </div>
-          </div>
-
-          {statusMessage && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-              {statusMessage}
-            </div>
+        <div className="flex flex-col gap-2">
+          {role === "visitor" && (
+            <Button
+              size="lg"
+              className="h-14 w-full text-lg"
+              onClick={handleStartCall}
+              disabled={
+                !callAllowed ||
+                isBusy ||
+                isWaitingForAnswer ||
+                callState === "calling" ||
+                callState === "ringing"
+              }
+            >
+              {callState === "connected"
+                ? "✅ Conectado"
+                : callState === "calling" || callState === "ringing"
+                  ? "📞 Chamando..."
+                  : "📞 CHAMADA DE VOZ"}
+            </Button>
           )}
+          <Card className="p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">📞</div>
+              <div>
+                <h3 className="font-semibold">
+                  {role === "visitor" ? "Chamada de Voz" : "Atendimento"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {role === "visitor"
+                    ? "Fale diretamente com o morador"
+                    : "Atenda chamadas dos visitantes"}
+                </p>
+              </div>
+            </div>
 
-          {role === "visitor" ? (
-            <div className="space-y-3">
-              <Button
-                onClick={handleStartCall}
-                disabled={
-                  !callAllowed ||
-                  isBusy ||
-                  isWaitingForAnswer ||
-                  callState === "calling" ||
-                  callState === "ringing"
-                }
-                className="w-full"
-              >
-                {callState === "connected"
-                  ? "✅ Conectado"
-                  : callState === "calling" || callState === "ringing"
-                    ? "📞 Chamando..."
-                    : "📞 Iniciar Chamada"}
-              </Button>
+            {statusMessage && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                {statusMessage}
+              </div>
+            )}
 
-              {/* Botão de cancelar chamada - aparece quando está chamando */}
-              {(callState === "calling" || callState === "ringing") && (
+            {role === "visitor" ? (
+              <div className="space-y-3">
+                {/* Botão de cancelar chamada - aparece quando está chamando */}
+                {(callState === "calling" || callState === "ringing") && (
+                  <Button
+                    onClick={handleEndCall}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    ❌ Cancelar Chamada
+                  </Button>
+                )}
+
+                <div className="flex gap-2 justify-between text-xs text-muted-foreground">
+                  {infoCards.map((item) => (
+                    <span key={item.label}>
+                      <strong>{item.label}:</strong> {item.value}
+                    </span>
+                  ))}
+                </div>
+                {callState === "connected" && (
+                  <div className="flex gap-2">
+                    <Button onClick={toggleMute} variant="outline" size="sm">
+                      {isMuted ? "🔊" : "🔇"}
+                    </Button>
+                    <Button
+                      onClick={handleEndCall}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      ❌ Encerrar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
+                </div>
                 <Button
-                  onClick={handleEndCall}
-                  variant="destructive"
+                  onClick={handleAcceptCall}
+                  disabled={
+                    !incomingOffer || isBusy || callState === "connected"
+                  }
                   className="w-full"
                 >
-                  ❌ Cancelar Chamada
+                  {incomingOffer ? "✅ Atender" : "Aguardando chamada"}
                 </Button>
-              )}
-
-              <div className="flex gap-2 justify-between text-xs text-muted-foreground">
-                {infoCards.map((item) => (
-                  <span key={item.label}>
-                    <strong>{item.label}:</strong> {item.value}
-                  </span>
-                ))}
-              </div>
-              {callState === "connected" && (
-                <div className="flex gap-2">
-                  <Button onClick={toggleMute} variant="outline" size="sm">
-                    {isMuted ? "🔊" : "🔇"}
-                  </Button>
-                  <Button
-                    onClick={handleEndCall}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    ❌ Encerrar
-                  </Button>
+                {callState === "connected" && (
+                  <div className="flex gap-2">
+                    <Button onClick={toggleMute} variant="outline" size="sm">
+                      {isMuted ? "🔊" : "🔇"}
+                    </Button>
+                    <Button
+                      onClick={handleEndCall}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      ❌ Encerrar
+                    </Button>
+                  </div>
+                )}
+                <div className="flex gap-2 justify-between text-xs text-muted-foreground">
+                  {infoCards.map((item) => (
+                    <span key={item.label}>
+                      <strong>{item.label}:</strong> {item.value}
+                    </span>
+                  ))}
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
               </div>
-              <Button
-                onClick={handleAcceptCall}
-                disabled={!incomingOffer || isBusy || callState === "connected"}
-                className="w-full"
-              >
-                {incomingOffer ? "✅ Atender" : "Aguardando chamada"}
-              </Button>
-              {callState === "connected" && (
-                <div className="flex gap-2">
-                  <Button onClick={toggleMute} variant="outline" size="sm">
-                    {isMuted ? "🔊" : "🔇"}
-                  </Button>
-                  <Button
-                    onClick={handleEndCall}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    ❌ Encerrar
-                  </Button>
-                </div>
-              )}
-              <div className="flex gap-2 justify-between text-xs text-muted-foreground">
-                {infoCards.map((item) => (
-                  <span key={item.label}>
-                    <strong>{item.label}:</strong> {item.value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        </div>
       )}
     </div>
   );

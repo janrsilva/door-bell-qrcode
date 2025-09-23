@@ -3,6 +3,8 @@
  * Reutilizado em frontend e backend
  */
 
+import { MAX_DISTANCE } from "./location-validation";
+
 export interface Coordinates {
   lat: number;
   lon: number;
@@ -50,7 +52,7 @@ export function calculateDistance(
 export function checkLocationProximity(
   addressCoords: Coordinates,
   visitorCoords: Coordinates,
-  maxDistance: number = 50,
+  maxDistance: number = MAX_DISTANCE,
 ): LocationResult {
   const distance = calculateDistance(addressCoords, visitorCoords);
   const isWithinRange = distance <= maxDistance;

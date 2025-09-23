@@ -10,12 +10,13 @@ import {
   formatDistance,
   type Coordinates,
 } from "@/lib/utils/latlong";
+import { MAX_DISTANCE } from "@/lib/utils/location-validation";
 
 interface LocationTrackerProps {
   addressCoords: Coordinates;
   onLocationUpdate: (
     coords: Coordinates | null,
-    distance: number | null
+    distance: number | null,
   ) => void;
 }
 
@@ -43,7 +44,7 @@ export function LocationTracker({
 
       const result = checkLocationProximity(
         addressCoords,
-        preciseResult.coords
+        preciseResult.coords,
       );
       setDistance(result.distance);
       setIsWithinRange(result.isWithinRange);
@@ -181,13 +182,13 @@ export function LocationTracker({
         </div>
       </div>
 
-      {!isWithinRange && distance !== null && distance > 50 && (
+      {!isWithinRange && distance !== null && distance > MAX_DISTANCE && (
         <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-md">
           <p className="text-sm text-orange-800 font-medium">
             🚫 Muito longe para tocar a campainha
           </p>
           <p className="text-xs text-orange-700 mt-1">
-            Você precisa estar a no máximo 50 metros do endereço
+            Você precisa estar a no máximo {MAX_DISTANCE} metros do endereço
           </p>
         </div>
       )}

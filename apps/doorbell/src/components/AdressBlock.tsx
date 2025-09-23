@@ -90,7 +90,8 @@ export default function AddressBlock({
             {abbreviateStreet(addressData.street)}
           </span>
           <span className="text-base leading-tight text-gray-300 break-words">
-            {addressData.neighborhood} | {addressData.city}
+            {addressData.neighborhood} | {addressData.city} /{" "}
+            {addressData.state}
           </span>
         </div>
       </div>

@@ -19,6 +19,7 @@ import {
   getCurrentLocation,
 } from "@/lib/utils/latlong";
 import { getLocationInstructions } from "@/lib/utils/location-instructions";
+import { MAX_DISTANCE } from "@/lib/utils/location-validation";
 
 type Props = {
   visit: {
@@ -117,14 +118,14 @@ export default function RingButton({
           setShowLocationDialog(false);
           setOk(false);
           setMsg(
-            "🔒 Permissão negada anteriormente. Siga as instruções abaixo para reativar:"
+            "🔒 Permissão negada anteriormente. Siga as instruções abaixo para reativar:",
           );
 
           // Mostrar instruções detalhadas
           setTimeout(() => {
             const instructions = getLocationInstructions();
             alert(
-              `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`
+              `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`,
             );
           }, 500);
 
@@ -181,7 +182,7 @@ export default function RingButton({
         setTimeout(() => {
           const instructions = getLocationInstructions();
           alert(
-            `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`
+            `🔒 PERMISSÃO DE LOCALIZAÇÃO NEGADA\n\n${instructions}\n\nApós seguir essas instruções, recarregue a página e tente novamente.`,
           );
         }, 1000);
       } else if (error.message.includes("timeout")) {
@@ -209,10 +210,14 @@ export default function RingButton({
     }
 
     // Verificar distância antes de tocar
-    if (distance !== null && distance !== undefined && distance > 50) {
+    if (
+      distance !== null &&
+      distance !== undefined &&
+      distance > MAX_DISTANCE
+    ) {
       setOk(false);
       setMsg(
-        `🚫 Muito longe! Você está a ${formatDistance(distance)} do endereço. Máximo permitido: 50m`
+        `🚫 Muito longe! Você está a ${formatDistance(distance)} do endereço. Máximo permitido: ${MAX_DISTANCE}m`,
       );
       return;
     }
@@ -307,7 +312,7 @@ export default function RingButton({
               ? `⏳ Aguarde ${countdown}s`
               : ok === true
                 ? "🔔 TOCAR NOVAMENTE"
-                : "🔔 TOCAR CAMPAINHA AGORA"}
+                : "🔔 TOCAR CAMPAINHA"}
       </Button>
 
       {ok === true && (

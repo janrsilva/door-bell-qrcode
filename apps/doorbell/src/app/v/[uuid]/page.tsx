@@ -11,7 +11,7 @@ type Props = { params: Promise<{ uuid: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { uuid } = await params;
-  const title = "Campainha Eletrônica";
+  const title = "CAMPAINHA ELETRÔNICA";
   const description =
     "Toque a campainha. O morador receberá um alerta imediato no celular.";
   return { title, description };

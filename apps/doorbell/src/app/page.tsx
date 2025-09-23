@@ -11,7 +11,7 @@ export default function HomePage() {
         <div className="text-center pt-8">
           <div className="text-6xl mb-4">🔔</div>
           <h1 className="text-3xl font-bold text-gray-800">
-            Campainha Eletrônica PWA
+            CAMPAINHA ELETRÔNICA PWA
           </h1>
           <p className="text-gray-600 mt-2">
             Sistema completo de campainha virtual com notificações push

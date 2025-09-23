@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campainha Eletrônica</title>
+    <title>CAMPAINHA ELETRÔNICA</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     </div>
 
     <div class="footer">
-        <p><strong>Sistema de Campainha Eletrônica</strong><br>
+        <p><strong>Sistema de CAMPAINHA ELETRÔNICA</strong><br>
         Escaneie o QR Code acima para tocar a campainha</p>
     </div>
 </body>

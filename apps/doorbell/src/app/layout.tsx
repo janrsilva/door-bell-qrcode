@@ -4,7 +4,7 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import SoundManager from "@/components/SoundManager";
 
 export const metadata: Metadata = {
-  title: "Campainha Eletrônica",
+  title: "CAMPAINHA ELETRÔNICA",
   description: "Toque a campainha de forma simples e rápida.",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
     "apple-mobile-web-app-title": "Campainha",
-    "application-name": "Campainha Eletrônica",
+    "application-name": "CAMPAINHA ELETRÔNICA",
     "msapplication-TileColor": "#3b82f6",
     "msapplication-config": "/browserconfig.xml",
   },

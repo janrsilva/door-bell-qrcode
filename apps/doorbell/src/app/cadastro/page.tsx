@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import RegistrationForm from "@/components/registration-form";
 
 export const metadata: Metadata = {
-  title: "Cadastro - Campainha Eletrônica",
+  title: "Cadastro - CAMPAINHA ELETRÔNICA",
   description: "Cadastre-se para receber notificações da campainha eletrônica.",
 };
 

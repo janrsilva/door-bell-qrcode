@@ -3,6 +3,10 @@ import { getDatabase } from "firebase-admin/database";
 import { getFirebaseAdminApp } from "@/lib/firebase-admin";
 import { notifyResidentOfferAvailable } from "@/lib/services/push-notification";
 import { prisma } from "@/lib/db";
+import {
+  validateVisitorLocation,
+  Coordinates,
+} from "@/lib/utils/location-validation";
 
 export async function POST(
   req: NextRequest,
@@ -14,7 +18,7 @@ export async function POST(
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
   }
 
-  let body: { sdp?: any };
+  let body: { sdp?: any; coords?: Coordinates };
   try {
     body = await req.json();
   } catch (error) {
@@ -28,6 +32,13 @@ export async function POST(
     );
   }
 
+  if (!body?.coords) {
+    return NextResponse.json(
+      { error: "Missing field 'coords' in request body" },
+      { status: 400 },
+    );
+  }
+
   try {
     const visit = await prisma.doorbellVisit.findUnique({
       where: { uuid: visitId },
@@ -36,6 +47,31 @@ export async function POST(
 
     if (!visit || !visit.address) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
+    }
+
+    // Validar localização do visitante
+    if (visit.address.latitude && visit.address.longitude) {
+      const addressCoords: Coordinates = {
+        lat: visit.address.latitude,
+        lon: visit.address.longitude,
+      };
+
+      const locationValidation = validateVisitorLocation(
+        body.coords,
+        addressCoords,
+      );
+
+      if (!locationValidation.isValid) {
+        return NextResponse.json(
+          {
+            error: "Localização inválida",
+            details: locationValidation.error,
+            distance: locationValidation.distance,
+            maxDistance: locationValidation.maxDistance,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const now = new Date().toISOString();
