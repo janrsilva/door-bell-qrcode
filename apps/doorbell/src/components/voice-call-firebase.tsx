@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
 import { useDoorbellWebRTC } from "@/hooks/useDoorbellWebRTC";
 import { useCallingSound } from "@/hooks/useCallingSound";
+import { FullscreenVideo } from "@/components/FullscreenVideo";
 import { type Coordinates } from "@/lib/utils/latlong";
+import { useAddress } from "@/contexts/AddressContext";
 
 interface VisitSnapshot {
   uuid?: string;
@@ -101,6 +103,7 @@ export default function VoiceCallFirebase(props: Props) {
     isMuted,
     ensureLocalStream,
     toggleMute,
+    toggleVideo,
     createOffer,
     acceptOffer,
     applyAnswer,
@@ -113,44 +116,7 @@ export default function VoiceCallFirebase(props: Props) {
     void postIceCandidate(visitId, candidate);
   });
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (localStream && localVideoRef.current) {
-      console.log(
-        "🎥 [VOICE_CALL] Configurando stream local no vídeo:",
-        localStream,
-      );
-      console.log(
-        "🎥 [VOICE_CALL] Audio tracks locais:",
-        localStream.getAudioTracks(),
-      );
-      console.log(
-        "🎥 [VOICE_CALL] Video tracks locais:",
-        localStream.getVideoTracks(),
-      );
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteStream && remoteVideoRef.current) {
-      console.log(
-        "🎥 [VOICE_CALL] Configurando stream remoto no vídeo:",
-        remoteStream,
-      );
-      console.log(
-        "🎥 [VOICE_CALL] Audio tracks remotos:",
-        remoteStream.getAudioTracks(),
-      );
-      console.log(
-        "🎥 [VOICE_CALL] Video tracks remotos:",
-        remoteStream.getVideoTracks(),
-      );
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
+  // Removido: localVideoRef e remoteVideoRef - agora gerenciados pelo FullscreenVideo
 
   const [callState, setCallState] = useState<
     "idle" | "calling" | "ringing" | "connected" | "ended"
@@ -160,6 +126,7 @@ export default function VoiceCallFirebase(props: Props) {
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
 
   const [visitData, setVisitData] = useState<VisitSnapshot | null>(null);
+  const { addressData } = useAddress();
   const endedProcessedRef = useRef(false);
 
   // Hook para reproduzir som de chamada (apenas para visitor)
@@ -221,13 +188,7 @@ export default function VoiceCallFirebase(props: Props) {
   );
 
   const handleEndCall = useCallback(async () => {
-    console.log("🔚 [END_CALL] Encerrando chamada de ambos os lados...");
     await cleanupCall(true, "Chamada encerrada");
-  }, [cleanupCall]);
-
-  const handleCancelCall = useCallback(async () => {
-    console.log("❌ [CANCEL_CALL] Cancelando chamada de ambos os lados...");
-    await cleanupCall(true, "Chamada cancelada");
   }, [cleanupCall]);
 
   useEffect(() => {
@@ -244,7 +205,6 @@ export default function VoiceCallFirebase(props: Props) {
       const onCallVisitId = onCallVisit?.uuid;
 
       if (onCallVisitId) {
-        console.log("📞 [RESIDENT] Visita ativa detectada:", onCallVisitId);
         processedCandidatesRef.current.clear();
         appliedAnswerRef.current = null;
         endedProcessedRef.current = false;
@@ -294,7 +254,6 @@ export default function VoiceCallFirebase(props: Props) {
 
     const unsubscribe = onValue(onCallVisitRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as VisitSnapshot | null;
-      console.log("🔍 [ON_CALL_VISIT_REF] Visit data:", data);
       setVisitData(data);
     });
 
@@ -540,7 +499,6 @@ export default function VoiceCallFirebase(props: Props) {
   const handleStartCall = useCallback(async () => {
     if (role !== "visitor") return;
 
-    console.log("🔍 [HANDLE_START_CALL] visitData:", visitData);
     if (!startVisitUuid) {
       throw new Error("visitId não definido");
     }
@@ -669,137 +627,144 @@ export default function VoiceCallFirebase(props: Props) {
       : Boolean(visitData?.uuid);
 
   const renderStreams = hasLocalStream || hasRemoteStream;
+  const showFullscreenVideo = renderStreams && callState !== "idle";
+
+  // Dados para o card de informações
+  const subtitle = "";
+
+  console.log("🔍 [ADDRESS] Debug:", {
+    addressUuid,
+    addressData,
+    subtitle,
+    showFullscreenVideo,
+  });
 
   return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="text-2xl">📞</div>
-        <div>
-          <h3 className="font-semibold">
-            {role === "visitor" ? "Chamada de Voz" : "Atendimento"}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {role === "visitor"
-              ? "Fale diretamente com o morador"
-              : "Atenda chamadas dos visitantes"}
-          </p>
-        </div>
-      </div>
-
-      {statusMessage && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-          {statusMessage}
-        </div>
-      )}
-
-      {renderStreams && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Você</p>
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="aspect-video w-full rounded bg-black object-cover"
-            />
-            <p className="text-xs text-muted-foreground">Câmera ativa</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Visitante</p>
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="aspect-video w-full rounded bg-black object-cover"
-            />
-            <p className="text-xs text-muted-foreground">
-              {hasRemoteStream ? "Conectado" : "Aguardando"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {role === "visitor" ? (
-        <div className="space-y-3">
-          <Button
-            onClick={handleStartCall}
-            disabled={
-              !callAllowed ||
-              isBusy ||
-              isWaitingForAnswer ||
-              callState === "calling" ||
-              callState === "ringing"
-            }
-            className="w-full"
-          >
-            {callState === "connected"
-              ? "✅ Conectado"
-              : callState === "calling" || callState === "ringing"
-                ? "📞 Chamando..."
-                : "📞 Iniciar Chamada"}
-          </Button>
-
-          {/* Botão de cancelar chamada - aparece quando está chamando */}
-          {(callState === "calling" || callState === "ringing") && (
-            <Button
-              onClick={handleCancelCall}
-              variant="destructive"
-              className="w-full"
-            >
-              ❌ Cancelar Chamada
-            </Button>
-          )}
-
-          <div className="flex gap-2 justify-between text-xs text-muted-foreground">
-            {infoCards.map((item) => (
-              <span key={item.label}>
-                <strong>{item.label}:</strong> {item.value}
-              </span>
-            ))}
-          </div>
-          {callState === "connected" && (
-            <div className="flex gap-2">
-              <Button onClick={toggleMute} variant="outline" size="sm">
-                {isMuted ? "🔊" : "🔇"}
-              </Button>
-              <Button onClick={handleEndCall} variant="destructive" size="sm">
-                ❌ Encerrar
-              </Button>
-            </div>
-          )}
-        </div>
+    <div className="relative">
+      {showFullscreenVideo ? (
+        <FullscreenVideo
+          localStream={localStream}
+          remoteStream={remoteStream}
+          localVideoEnabled={localVideoEnabled}
+          isMuted={isMuted}
+          role={role}
+          callState={callState}
+          onToggleMute={toggleMute}
+          onToggleVideo={toggleVideo}
+          onEndCall={handleEndCall}
+        />
       ) : (
-        <div className="space-y-3">
-          <div className="text-sm text-muted-foreground">
-            Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
+        <Card className="p-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">📞</div>
+            <div>
+              <h3 className="font-semibold">
+                {role === "visitor" ? "Chamada de Voz" : "Atendimento"}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {role === "visitor"
+                  ? "Fale diretamente com o morador"
+                  : "Atenda chamadas dos visitantes"}
+              </p>
+            </div>
           </div>
-          <Button
-            onClick={handleAcceptCall}
-            disabled={!incomingOffer || isBusy || callState === "connected"}
-            className="w-full"
-          >
-            {incomingOffer ? "✅ Atender" : "Aguardando chamada"}
-          </Button>
-          {callState === "connected" && (
-            <div className="flex gap-2">
-              <Button onClick={toggleMute} variant="outline" size="sm">
-                {isMuted ? "🔊" : "🔇"}
-              </Button>
-              <Button onClick={handleEndCall} variant="destructive" size="sm">
-                ❌ Encerrar
-              </Button>
+
+          {statusMessage && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              {statusMessage}
             </div>
           )}
-          <div className="flex gap-2 justify-between text-xs text-muted-foreground">
-            {infoCards.map((item) => (
-              <span key={item.label}>
-                <strong>{item.label}:</strong> {item.value}
-              </span>
-            ))}
-          </div>
-        </div>
+
+          {role === "visitor" ? (
+            <div className="space-y-3">
+              <Button
+                onClick={handleStartCall}
+                disabled={
+                  !callAllowed ||
+                  isBusy ||
+                  isWaitingForAnswer ||
+                  callState === "calling" ||
+                  callState === "ringing"
+                }
+                className="w-full"
+              >
+                {callState === "connected"
+                  ? "✅ Conectado"
+                  : callState === "calling" || callState === "ringing"
+                    ? "📞 Chamando..."
+                    : "📞 Iniciar Chamada"}
+              </Button>
+
+              {/* Botão de cancelar chamada - aparece quando está chamando */}
+              {(callState === "calling" || callState === "ringing") && (
+                <Button
+                  onClick={handleEndCall}
+                  variant="destructive"
+                  className="w-full"
+                >
+                  ❌ Cancelar Chamada
+                </Button>
+              )}
+
+              <div className="flex gap-2 justify-between text-xs text-muted-foreground">
+                {infoCards.map((item) => (
+                  <span key={item.label}>
+                    <strong>{item.label}:</strong> {item.value}
+                  </span>
+                ))}
+              </div>
+              {callState === "connected" && (
+                <div className="flex gap-2">
+                  <Button onClick={toggleMute} variant="outline" size="sm">
+                    {isMuted ? "🔊" : "🔇"}
+                  </Button>
+                  <Button
+                    onClick={handleEndCall}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    ❌ Encerrar
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
+              </div>
+              <Button
+                onClick={handleAcceptCall}
+                disabled={!incomingOffer || isBusy || callState === "connected"}
+                className="w-full"
+              >
+                {incomingOffer ? "✅ Atender" : "Aguardando chamada"}
+              </Button>
+              {callState === "connected" && (
+                <div className="flex gap-2">
+                  <Button onClick={toggleMute} variant="outline" size="sm">
+                    {isMuted ? "🔊" : "🔇"}
+                  </Button>
+                  <Button
+                    onClick={handleEndCall}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    ❌ Encerrar
+                  </Button>
+                </div>
+              )}
+              <div className="flex gap-2 justify-between text-xs text-muted-foreground">
+                {infoCards.map((item) => (
+                  <span key={item.label}>
+                    <strong>{item.label}:</strong> {item.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
       )}
-    </Card>
+    </div>
   );
 }

@@ -186,7 +186,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
         }
 
         // Clean URL
-        window.history.replaceState({}, "", "/atendimento");
+        window.history.replaceState({}, "", "/resident");
       } catch (error) {
         console.error("Error parsing voice call data from URL:", error);
       }

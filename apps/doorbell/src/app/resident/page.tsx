@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { CallPageContent } from "@/components/CallPageContent";
-import VoiceCallFirebase from "@/components/voice-call-firebase";
+import { AddressData, AddressProvider } from "@/contexts/AddressContext";
 
 export default function CallPage() {
   const { data: session, status } = useSession();
@@ -59,7 +59,11 @@ export default function CallPage() {
 
   // Authenticated - render the page content
   if (session?.user) {
-    return <CallPageContent user={session.user as any} />;
+    return (
+      <AddressProvider addressData={session.user.address as AddressData}>
+        <CallPageContent user={session.user as any} />
+      </AddressProvider>
+    );
   }
 
   return null;

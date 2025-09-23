@@ -2,7 +2,7 @@
   "name": "Campainha Eletrônica - Central de Chamadas",
   "short_name": "Campainha",
   "description": "Receba chamadas de campainha no seu telefone mesmo com o app fechado",
-  "start_url": "/atendimento",
+  "start_url": "/resident",
   "display": "standalone",
   "id": "campainha-eletronica",
   "background_color": "#ffffff",
@@ -78,7 +78,7 @@
       "name": "Central de Chamadas",
       "short_name": "Chamadas",
       "description": "Abrir central de chamadas da campainha",
-      "url": "/atendimento",
+      "url": "/resident",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     }
   ]

@@ -1,6 +1,6 @@
 const CACHE_NAME = "doorbell-call-v4"; // Som da campainha corrigido com abordagem correta
 const urlsToCache = [
-  "/atendimento",
+  "/resident",
   "/sounds/rington.mp3",
   "/sounds/doorbell.mp3", // Som personalizado da campainha
   "/icons/icon-192x192.png",
@@ -14,7 +14,7 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       console.log("📦 Cache aberto");
       return cache.addAll(urlsToCache);
-    })
+    }),
   );
   self.skipWaiting(); // Ativa imediatamente
 });
@@ -31,7 +31,7 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((response) => {
       // Retorna do cache se disponível, senão busca na rede
       return response || fetch(event.request);
-    })
+    }),
   );
 });
 
@@ -104,7 +104,7 @@ self.addEventListener("push", (event) => {
     .matchAll({ type: "window", includeUncontrolled: true })
     .then((clients) => {
       console.log(
-        `📱 Notificando ${clients.length} clientes para som customizado`
+        `📱 Notificando ${clients.length} clientes para som customizado`,
       );
       clients.forEach((client) => {
         if (notificationType === "voice_call") {
@@ -153,15 +153,13 @@ self.addEventListener("notificationclick", (event) => {
       // Para chamadas de voz, passar dados de sinalização WebRTC
       event.waitUntil(
         self.clients.openWindow(
-          `/atendimento?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`
-        )
+          `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
+        ),
       );
     } else {
       // Campainha normal
       event.waitUntil(
-        self.clients.openWindow(
-          `/atendimento?call=${data.visitId}&action=answer`
-        )
+        self.clients.openWindow(`/resident?call=${data.visitId}&action=answer`),
       );
     }
   } else if (action === "ignore" || action === "ignore_call") {
@@ -172,11 +170,11 @@ self.addEventListener("notificationclick", (event) => {
     if (data.type === "voice_call") {
       event.waitUntil(
         self.clients.openWindow(
-          `/atendimento?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`
-        )
+          `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
+        ),
       );
     } else {
-      event.waitUntil(self.clients.openWindow("/atendimento"));
+      event.waitUntil(self.clients.openWindow("/resident"));
     }
   }
 });

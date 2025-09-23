@@ -30,7 +30,7 @@ const unprotectedPages = [
 ];
 
 // 🔐 PÁGINAS que PRECISAM de autenticação (protegidas pelo HOC):
-// - /atendimento (morador - withAuthUser)
+// - /resident (morador - withAuthUser)
 // - /admin (administradores - withCpfPermission)
 // - /teste-campainha (usuários logados - withAuth)
 // - /exemplo-protegida (exemplo - withAuth)
@@ -56,7 +56,7 @@ export default withAuth(
 
     // ✅ Permitir páginas não protegidas
     const isUnprotectedPage = unprotectedPages.some((route) =>
-      pathname.startsWith(route)
+      pathname.startsWith(route),
     );
 
     if (isUnprotectedPage) {
@@ -66,7 +66,7 @@ export default withAuth(
 
     // ✅ Permitir APIs não protegidas
     const isUnprotectedApi = unprotectedApiRoutes.some((route) =>
-      pathname.startsWith(route)
+      pathname.startsWith(route),
     );
 
     if (isUnprotectedApi) {
@@ -87,16 +87,16 @@ export default withAuth(
     if (pathname.startsWith("/api/") && req.nextauth.token) {
       response.headers.set(
         "x-user-id",
-        req.nextauth.token.userId?.toString() || ""
+        req.nextauth.token.userId?.toString() || "",
       );
       response.headers.set("x-user-cpf", req.nextauth.token.cpf || "");
       response.headers.set(
         "x-address-id",
-        req.nextauth.token.addressId?.toString() || ""
+        req.nextauth.token.addressId?.toString() || "",
       );
       response.headers.set(
         "x-address-uuid",
-        String(req.nextauth.token.addressUuid || "")
+        String(req.nextauth.token.addressUuid || ""),
       );
       response.headers.set("x-user-name", req.nextauth.token.name || "");
       response.headers.set("x-user-email", req.nextauth.token.email || "");
@@ -126,20 +126,20 @@ export default withAuth(
 
         // ✅ Permitir páginas não protegidas
         const isUnprotectedPage = unprotectedPages.some((route) =>
-          pathname.startsWith(route)
+          pathname.startsWith(route),
         );
         if (isUnprotectedPage) return true;
 
         // ✅ Permitir APIs não protegidas
         const isUnprotectedApi = unprotectedApiRoutes.some((route) =>
-          pathname.startsWith(route)
+          pathname.startsWith(route),
         );
         if (isUnprotectedApi) return true;
 
         // 🔐 Para rotas protegidas, exigir token válido
         const isAuthenticated = !!token;
         console.log(
-          `🔐 Verificando autorização para ${pathname}: ${isAuthenticated ? "✅ Autorizado" : "❌ Negado"}`
+          `🔐 Verificando autorização para ${pathname}: ${isAuthenticated ? "✅ Autorizado" : "❌ Negado"}`,
         );
 
         return isAuthenticated;
@@ -149,7 +149,7 @@ export default withAuth(
       signIn: "/auth/login",
       error: "/auth/error",
     },
-  }
+  },
 );
 
 export const config = {

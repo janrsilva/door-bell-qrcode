@@ -49,10 +49,11 @@ export interface DoorbellWebRTCControls {
   ensureLocalStream(options: EnsureLocalStreamOptions): Promise<MediaStream>;
   enableLocalVideo(): Promise<void>;
   toggleMute(): void;
+  toggleVideo(): void;
   createOffer(options?: CreateOfferOptions): Promise<RTCSessionDescriptionInit>;
   acceptOffer(
     offer: RTCSessionDescriptionInit,
-    options?: CreateAnswerOptions
+    options?: CreateAnswerOptions,
   ): Promise<RTCSessionDescriptionInit>;
   applyAnswer(answer: RTCSessionDescriptionInit): Promise<void>;
   sendIceCandidate(candidate: RTCIceCandidate, visitId: string): Promise<void>;
@@ -62,7 +63,7 @@ export interface DoorbellWebRTCControls {
 }
 
 export function useDoorbellWebRTC(
-  onIceCandidateCallback?: (candidate: RTCIceCandidate) => void
+  onIceCandidateCallback?: (candidate: RTCIceCandidate) => void,
 ): DoorbellWebRTCState & DoorbellWebRTCControls {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -91,7 +92,7 @@ export function useDoorbellWebRTC(
       remoteStreamRef.current = stream;
       setRemoteStream(stream);
     },
-    []
+    [],
   );
 
   const updateConnectionState = useCallback((pc: RTCPeerConnection) => {
@@ -180,13 +181,13 @@ export function useDoorbellWebRTC(
       updateRemoteMediaElements(stream);
       setHasRemoteStream(true);
       setRemoteVideoEnabled(
-        stream.getVideoTracks().length > 0 || event.track.kind === "video"
+        stream.getVideoTracks().length > 0 || event.track.kind === "video",
       );
 
       const handleTrackUpdate = () => {
         console.log(
           "📹 [HOOK] Track update - video tracks:",
-          stream.getVideoTracks().length
+          stream.getVideoTracks().length,
         );
         setRemoteVideoEnabled(stream.getVideoTracks().length > 0);
       };
@@ -302,7 +303,7 @@ export function useDoorbellWebRTC(
         throw mediaError;
       }
     },
-    [enableLocalVideo]
+    [enableLocalVideo],
   );
 
   const attachLocalTracks = useCallback(
@@ -311,7 +312,7 @@ export function useDoorbellWebRTC(
         pc.addTrack(track, stream);
       });
     },
-    []
+    [],
   );
 
   const toggleMute = useCallback(() => {
@@ -323,6 +324,17 @@ export function useDoorbellWebRTC(
 
     track.enabled = !track.enabled;
     setIsMuted(!track.enabled);
+  }, []);
+
+  const toggleVideo = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    const [track] = stream.getVideoTracks();
+    if (!track) return;
+
+    track.enabled = !track.enabled;
+    setLocalVideoEnabled(track.enabled);
   }, []);
 
   const createOffer = useCallback(
@@ -361,7 +373,7 @@ export function useDoorbellWebRTC(
       createPeerConnection,
       ensureLocalStream,
       updateConnectionState,
-    ]
+    ],
   );
 
   const acceptOffer = useCallback(
@@ -371,7 +383,7 @@ export function useDoorbellWebRTC(
         receiveAudio = true,
         receiveVideo = true,
         withLocalVideo = false,
-      }: CreateAnswerOptions = {}
+      }: CreateAnswerOptions = {},
     ) => {
       console.log("🎯 [HOOK] acceptOffer chamado com:", offer);
       console.log("🎯 [HOOK] Opções:", {
@@ -412,7 +424,7 @@ export function useDoorbellWebRTC(
         .filter((transceiver) => transceiver.receiver.track?.kind === "video");
 
       console.log(
-        `📹 [HOOK] Encontrados ${videoTransceivers.length} transceivers de vídeo`
+        `📹 [HOOK] Encontrados ${videoTransceivers.length} transceivers de vídeo`,
       );
 
       // Se não há transceivers de vídeo, criar um
@@ -430,7 +442,7 @@ export function useDoorbellWebRTC(
         .filter(
           (transceiver) =>
             transceiver.receiver.track?.kind === "video" ||
-            transceiver.receiver.track === null
+            transceiver.receiver.track === null,
         );
 
       for (const transceiver of allVideoTransceivers) {
@@ -468,7 +480,7 @@ export function useDoorbellWebRTC(
       createPeerConnection,
       ensureLocalStream,
       updateConnectionState,
-    ]
+    ],
   );
 
   const applyAnswer = useCallback(
@@ -488,7 +500,7 @@ export function useDoorbellWebRTC(
       setLocalDescription(peerRef.current.localDescription ?? null);
       console.log("✅ [HOOK] applyAnswer concluído!");
     },
-    [updateConnectionState]
+    [updateConnectionState],
   );
 
   const sendIceCandidate = useCallback(
@@ -515,7 +527,7 @@ export function useDoorbellWebRTC(
         console.error("❌ [HOOK] Erro ao enviar ICE candidate:", error);
       }
     },
-    []
+    [],
   );
 
   const applyIceCandidate = useCallback(
@@ -533,7 +545,7 @@ export function useDoorbellWebRTC(
         console.error("❌ [HOOK] Erro ao aplicar ICE candidate:", error);
       }
     },
-    []
+    [],
   );
 
   const reset = useCallback(() => {
@@ -600,7 +612,7 @@ export function useDoorbellWebRTC(
       error,
       iceGatheringState,
       localDescription,
-    ]
+    ],
   );
 
   const controls = useMemo<DoorbellWebRTCControls>(
@@ -608,6 +620,7 @@ export function useDoorbellWebRTC(
       ensureLocalStream,
       enableLocalVideo,
       toggleMute,
+      toggleVideo,
       createOffer,
       acceptOffer,
       applyAnswer,
@@ -626,8 +639,9 @@ export function useDoorbellWebRTC(
       applyIceCandidate,
       reset,
       toggleMute,
+      toggleVideo,
       setError,
-    ]
+    ],
   );
 
   return {

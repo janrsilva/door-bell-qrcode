@@ -31,7 +31,7 @@ export default function HomePage() {
                   Para moradores - receba chamadas da campainha
                 </p>
               </div>
-              <Button onClick={() => (window.location.href = "/atendimento")}>
+              <Button onClick={() => (window.location.href = "/resident")}>
                 Acessar
               </Button>
             </div>
@@ -114,7 +114,7 @@ export default function HomePage() {
               <strong className="text-green-700">2. Configurar PWA:</strong>
               <ul className="mt-1 ml-4 list-disc text-green-700">
                 <li>
-                  Após login, acesse <code>/atendimento</code>
+                  Após login, acesse <code>/resident</code>
                 </li>
                 <li>Clique "Configurar Notificações"</li>
                 <li>Permita notificações</li>

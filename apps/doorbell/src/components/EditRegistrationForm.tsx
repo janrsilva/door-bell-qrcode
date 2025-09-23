@@ -146,7 +146,7 @@ export default function EditRegistrationForm({
 
       // Redirecionar após sucesso
       setTimeout(() => {
-        router.push("/atendimento");
+        router.push("/resident");
       }, 2000);
     } catch (error: any) {
       setSubmitMessage({ type: "error", text: error.message });
@@ -216,7 +216,7 @@ export default function EditRegistrationForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/atendimento")}
+              onClick={() => router.push("/resident")}
             >
               Cancelar
             </Button>

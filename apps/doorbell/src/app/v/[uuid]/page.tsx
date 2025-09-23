@@ -45,7 +45,7 @@ export default async function CampainhaPage({ params }: Props) {
         dangerouslySetInnerHTML={{
           __html: `
                 // Redirect to the single-use page immediately
-                window.location.replace('/visits/${visitResult.visit.uuid}');
+                window.location.replace('/visitor/${visitResult.visit.uuid}');
               `,
         }}
       />

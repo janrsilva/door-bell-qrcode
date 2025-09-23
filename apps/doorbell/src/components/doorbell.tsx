@@ -9,6 +9,8 @@ import CountdownTimer from "@/components/countdown-timer";
 import { type Coordinates } from "@/lib/utils/latlong";
 import ApiService from "@/lib/api";
 import { getSimpleLocationInstructions } from "@/lib/utils/location-instructions";
+import { useAddress } from "@/contexts/AddressContext";
+import AddressBlock from "./AdressBlock";
 
 type Props = {
   visit: {
@@ -41,20 +43,13 @@ export default function DoorbellPageClient({ visit }: Props) {
   const [isGettingLocationAutomatically, setIsGettingLocationAutomatically] =
     useState(false);
   const hasCheckedLocationRef = useRef(false);
+  const { addressData } = useAddress();
 
   // Verificar se endereço tem coordenadas (mover para antes do useEffect)
   const addressCoords: Coordinates | null =
     visit.address.latitude && visit.address.longitude
       ? { lat: visit.address.latitude, lon: visit.address.longitude }
       : null;
-
-  const handleLocationUpdate = (
-    coords: Coordinates | null,
-    dist: number | null
-  ) => {
-    setVisitorCoords(coords);
-    setDistance(dist);
-  };
 
   // Verificar e obter localização automaticamente se já foi permitida
   useEffect(() => {
@@ -82,7 +77,7 @@ export default function DoorbellPageClient({ visit }: Props) {
             if (result.success) {
               console.log(
                 "✅ Localização obtida automaticamente:",
-                result.coords
+                result.coords,
               );
             }
           }
@@ -103,7 +98,7 @@ export default function DoorbellPageClient({ visit }: Props) {
               if (result.success) {
                 console.log(
                   "✅ Localização obtida após mudança de permissão:",
-                  result.coords
+                  result.coords,
                 );
               }
             }
@@ -149,7 +144,7 @@ export default function DoorbellPageClient({ visit }: Props) {
             timeout: 15000,
             maximumAge: 60000, // Cache por 1 minuto
           });
-        }
+        },
       );
 
       const coords: Coordinates = {
@@ -164,8 +159,8 @@ export default function DoorbellPageClient({ visit }: Props) {
             (coords.lon - addressCoords.lon) *
               111000 *
               Math.cos((coords.lat * Math.PI) / 180),
-            2
-          )
+            2,
+          ),
       );
 
       // Atualizar estado
@@ -210,6 +205,14 @@ export default function DoorbellPageClient({ visit }: Props) {
       console.error("Error ringing bell during call start:", error);
     }
   };
+
+  // return (
+  //   <div className="p-1">
+  //     <div className="bg-black/70 backdrop-blur-sm rounded-lg p-4 text-white">
+  //       {addressData && <AddressBlock addressData={addressData} />}
+  //     </div>
+  //   </div>
+  // );
 
   return (
     <main className="min-h-dvh flex items-center justify-center p-4">

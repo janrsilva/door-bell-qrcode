@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { SimpleDoorbellService } from "@/lib/services/simple-doorbell-service";
 import DoorbellPageClient from "@/components/doorbell";
+import { AddressProvider } from "@/contexts/AddressContext";
+import { AddressData } from "@/contexts/AddressContext";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,7 +36,11 @@ export default async function UseVisitPage({ params }: Props) {
     const isExpired = getResult.isExpired!;
 
     // Display the doorbell page using client component
-    return <DoorbellPageClient visit={{ ...visit, expiredAt, isExpired }} />;
+    return (
+      <AddressProvider addressData={visit.address as AddressData}>
+        <DoorbellPageClient visit={{ ...visit, expiredAt, isExpired }} />
+      </AddressProvider>
+    );
   } catch (error: any) {
     console.error("UseVisitPage: Error:", error);
     return (

@@ -18,7 +18,7 @@ export const LoginForm: React.FC = () => {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/atendimento";
+  const callbackUrl = searchParams.get("callbackUrl") || "/resident";
 
   const formatCPF = (value: string) => {
     // Remove tudo que não é número
