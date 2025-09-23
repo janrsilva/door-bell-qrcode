@@ -73,13 +73,6 @@ export default function DoorbellPageClient({ visit }: Props) {
             setIsGettingLocationAutomatically(true);
             const result = await requestLocationOnDemand();
             setIsGettingLocationAutomatically(false);
-
-            if (result.success) {
-              console.log(
-                "✅ Localização obtida automaticamente:",
-                result.coords,
-              );
-            }
           }
 
           // Escutar mudanças na permissão
@@ -94,13 +87,6 @@ export default function DoorbellPageClient({ visit }: Props) {
               setIsGettingLocationAutomatically(true);
               const result = await requestLocationOnDemand();
               setIsGettingLocationAutomatically(false);
-
-              if (result.success) {
-                console.log(
-                  "✅ Localização obtida após mudança de permissão:",
-                  result.coords,
-                );
-              }
             }
           };
         } catch (error) {

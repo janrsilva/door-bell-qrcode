@@ -46,8 +46,6 @@ export const LoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      console.log("🔐 Tentando login com NextAuth...");
-
       const result = await signIn("credentials", {
         cpf,
         password,
@@ -55,13 +53,11 @@ export const LoginForm: React.FC = () => {
       });
 
       if (result?.error) {
-        console.log("❌ Erro no login:", result.error);
         setError("CPF ou senha inválidos");
         return;
       }
 
       if (result?.ok) {
-        console.log("✅ Login bem-sucedido com NextAuth");
         router.push(callbackUrl as any);
         router.refresh();
       } else {

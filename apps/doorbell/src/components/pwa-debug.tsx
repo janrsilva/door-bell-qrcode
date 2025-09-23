@@ -84,12 +84,11 @@ export default function PWADebug() {
   const testInstallPrompt = () => {
     // Simular evento beforeinstallprompt
     const event = new Event("beforeinstallprompt");
-    (event as any).preventDefault = () => console.log("preventDefault called");
-    (event as any).prompt = () => console.log("prompt called");
+    (event as any).preventDefault = () => {};
+    (event as any).prompt = () => {};
     (event as any).userChoice = Promise.resolve({ outcome: "accepted" });
 
     window.dispatchEvent(event);
-    console.log("🧪 Evento beforeinstallprompt simulado");
   };
 
   const forceReregisterSW = async () => {
@@ -99,12 +98,10 @@ export default function PWADebug() {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (const registration of registrations) {
           await registration.unregister();
-          console.log("🗑️ Service Worker removido");
         }
 
         // Re-register
         const registration = await navigator.serviceWorker.register("/sw.js");
-        console.log("✅ Service Worker re-registrado:", registration);
 
         // Update debug info
         setTimeout(() => {
@@ -153,7 +150,6 @@ export default function PWADebug() {
         </Button>
         <Button
           onClick={() => {
-            console.log("📊 Full Debug Info:", debugInfo);
             alert("Debug info logged to console");
           }}
           size="sm"

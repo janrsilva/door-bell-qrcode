@@ -137,7 +137,6 @@ export function useDoorbellWebRTC(
     pc.onicecandidate = (event) => {
       setLocalDescription(pc.localDescription ?? null);
       if (event.candidate) {
-        console.log("🧊 [HOOK] ICE candidate gerado:", event.candidate);
         // ICE candidate será enviado via callback externo se fornecido
         if (onIceCandidateCallback) {
           onIceCandidateCallback(event.candidate);
@@ -156,27 +155,10 @@ export function useDoorbellWebRTC(
     };
 
     pc.ontrack = (event) => {
-      console.log("🎵 [HOOK] ontrack event recebido:", event);
-      console.log("🎵 [HOOK] Track details:", {
-        kind: event.track.kind,
-        id: event.track.id,
-        enabled: event.track.enabled,
-        muted: event.track.muted,
-        readyState: event.track.readyState,
-        streams: event.streams.length,
-      });
-
       const [stream] = event.streams;
       if (!stream) {
-        console.log("⚠️ [HOOK] Stream não encontrado no event");
         return;
       }
-
-      console.log("✅ [HOOK] Stream remoto recebido:", stream);
-      console.log("🎵 [HOOK] Audio tracks:", stream.getAudioTracks());
-      console.log("📹 [HOOK] Video tracks:", stream.getVideoTracks());
-      console.log("📹 [HOOK] Stream ID:", stream.id);
-      console.log("📹 [HOOK] Stream active:", stream.active);
 
       updateRemoteMediaElements(stream);
       setHasRemoteStream(true);
@@ -185,10 +167,6 @@ export function useDoorbellWebRTC(
       );
 
       const handleTrackUpdate = () => {
-        console.log(
-          "📹 [HOOK] Track update - video tracks:",
-          stream.getVideoTracks().length,
-        );
         setRemoteVideoEnabled(stream.getVideoTracks().length > 0);
       };
 
@@ -385,55 +363,29 @@ export function useDoorbellWebRTC(
         withLocalVideo = false,
       }: CreateAnswerOptions = {},
     ) => {
-      console.log("🎯 [HOOK] acceptOffer chamado com:", offer);
-      console.log("🎯 [HOOK] Opções:", {
-        receiveAudio,
-        receiveVideo,
-        withLocalVideo,
-      });
-
       const stream = await ensureLocalStream({ withVideo: withLocalVideo });
-      console.log("✅ [HOOK] Stream local criado:", stream);
 
       const pc = createPeerConnection();
-      console.log("✅ [HOOK] Peer connection criada");
 
-      console.log("🔄 [HOOK] Definindo remote description...");
       await pc.setRemoteDescription(offer);
-      console.log("✅ [HOOK] Remote description definida");
 
-      console.log("🔄 [HOOK] Anexando tracks locais...");
       attachLocalTracks(pc, stream);
-      console.log("✅ [HOOK] Tracks locais anexados");
 
       // Log todos os transceivers disponíveis
       const allTransceivers = pc.getTransceivers();
-      console.log(`📹 [HOOK] Total de transceivers: ${allTransceivers.length}`);
-      allTransceivers.forEach((transceiver, index) => {
-        console.log(`📹 [HOOK] Transceiver ${index}:`, {
-          direction: transceiver.direction,
-          receiverTrack: transceiver.receiver.track?.kind || "null",
-          senderTrack: transceiver.sender.track?.kind || "null",
-          currentDirection: transceiver.currentDirection,
-        });
-      });
+
+      allTransceivers.forEach((transceiver, index) => {});
 
       // Configurar transceivers de vídeo após setRemoteDescription
       const videoTransceivers = pc
         .getTransceivers()
         .filter((transceiver) => transceiver.receiver.track?.kind === "video");
 
-      console.log(
-        `📹 [HOOK] Encontrados ${videoTransceivers.length} transceivers de vídeo`,
-      );
-
       // Se não há transceivers de vídeo, criar um
       if (videoTransceivers.length === 0 && receiveVideo) {
-        console.log("📹 [HOOK] Criando transceiver de vídeo para receber");
         const videoTransceiver = pc.addTransceiver("video", {
           direction: "recvonly",
         });
-        console.log("✅ [HOOK] Transceiver de vídeo criado para receber");
       }
 
       // Configurar todos os transceivers de vídeo existentes
@@ -450,29 +402,22 @@ export function useDoorbellWebRTC(
           transceiver.direction = "sendrecv";
           transceiver.sender.setStreams(stream);
           videoSenderRef.current = transceiver.sender;
-          console.log("✅ [HOOK] Video transceiver configurado para sendrecv");
         } else {
           transceiver.direction = "recvonly";
-          console.log("✅ [HOOK] Video transceiver configurado para recvonly");
         }
       }
 
-      console.log("🔄 [HOOK] Criando answer...");
       const answer = await pc.createAnswer({
         offerToReceiveAudio: receiveAudio,
         offerToReceiveVideo: receiveVideo,
       });
-      console.log("✅ [HOOK] Answer criada:", answer);
 
-      console.log("🔄 [HOOK] Definindo local description...");
       await pc.setLocalDescription(answer);
-      console.log("✅ [HOOK] Local description definida");
 
       updateConnectionState(pc);
       setLocalDescription(pc.localDescription ?? answer);
       setIceGatheringState(pc.iceGatheringState);
 
-      console.log("✅ [HOOK] acceptOffer concluído");
       return answer;
     },
     [
@@ -485,20 +430,15 @@ export function useDoorbellWebRTC(
 
   const applyAnswer = useCallback(
     async (answer: RTCSessionDescriptionInit) => {
-      console.log("🔧 [HOOK] applyAnswer chamado com:", answer);
-
       if (!peerRef.current) {
         console.error("❌ [HOOK] Peer connection não existe!");
         throw new Error("Crie uma offer antes de aplicar a answer remota.");
       }
 
-      console.log("🔄 [HOOK] Definindo remote description...");
       await peerRef.current.setRemoteDescription(answer);
-      console.log("✅ [HOOK] Remote description definida com sucesso!");
 
       updateConnectionState(peerRef.current);
       setLocalDescription(peerRef.current.localDescription ?? null);
-      console.log("✅ [HOOK] applyAnswer concluído!");
     },
     [updateConnectionState],
   );
@@ -521,8 +461,6 @@ export function useDoorbellWebRTC(
         if (!response.ok) {
           throw new Error("Falha ao enviar ICE candidate");
         }
-
-        console.log("✅ [HOOK] ICE candidate enviado com sucesso");
       } catch (error) {
         console.error("❌ [HOOK] Erro ao enviar ICE candidate:", error);
       }
@@ -538,9 +476,7 @@ export function useDoorbellWebRTC(
       }
 
       try {
-        console.log("🔄 [HOOK] Aplicando ICE candidate:", candidate);
         await peerRef.current.addIceCandidate(candidate);
-        console.log("✅ [HOOK] ICE candidate aplicado com sucesso");
       } catch (error) {
         console.error("❌ [HOOK] Erro ao aplicar ICE candidate:", error);
       }

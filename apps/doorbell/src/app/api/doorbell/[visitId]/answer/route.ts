@@ -43,12 +43,6 @@ export async function POST(
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
 
-    console.log("🔍 [ANSWER_API] Visit encontrada:", {
-      visitId,
-      addressUuid: visit.address.addressUuid,
-      address: visit.address,
-    });
-
     const onCallVisitRef = db.ref(
       `addresses/${visit.address.addressUuid}/onCallVisit`,
     );

@@ -63,21 +63,19 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
-                      console.log('✅ SW registrado com sucesso:', registration.scope);
-                      console.log('🔧 SW registration:', registration);
 
                       // Verificar se está ativo
                       if (registration.active) {
-                        console.log('✅ SW está ativo');
+                        // SW ativo
                       } else {
-                        console.log('⏳ SW aguardando ativação...');
+                        // SW aguardando ativação
                       }
                     }, function(err) {
-                      console.log('❌ Falha ao registrar SW:', err);
+                      // Falha ao registrar SW
                     });
                 });
               } else {
-                console.log('❌ Service Worker não suportado neste navegador');
+                // Service Worker não suportado
               }
             `,
           }}

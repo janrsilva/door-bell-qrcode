@@ -33,10 +33,8 @@ export function unlockAudio(initialFile?: string) {
   if (typeof window === "undefined") return;
   if (isUnlocked) return; // já desbloqueado
 
-  console.log("🔓 Desbloqueando áudio para notificações...");
-
   audioEl = new Audio(
-    initialFile ? `/sounds/${initialFile}` : "/sounds/doorbell.mp3"
+    initialFile ? `/sounds/${initialFile}` : "/sounds/doorbell.mp3",
   );
   audioEl.preload = "auto";
 
@@ -51,7 +49,6 @@ export function unlockAudio(initialFile?: string) {
         audioEl.volume = 1;
       }
       isUnlocked = true;
-      console.log("✅ Áudio desbloqueado com sucesso");
     })
     .catch((err) => {
       console.warn("⚠️ Falha ao desbloquear áudio:", err);
@@ -64,13 +61,11 @@ export async function playSound(file?: string) {
 
   const cfg = getSoundConfig();
   if (!cfg.enabled) {
-    console.log("🔇 Som customizado desabilitado");
     return;
   }
 
   // Só tocar se a aba estiver visível (foreground)
   if (document.visibilityState !== "visible") {
-    console.log("👁️ Aba não visível - não tocando som customizado");
     return;
   }
 
@@ -78,10 +73,7 @@ export async function playSound(file?: string) {
   const src = `/sounds/${chosen}`;
 
   try {
-    console.log(`🔔 Tocando som customizado: ${chosen}`);
-
     if (!audioEl || !isUnlocked) {
-      console.log("🔓 Áudio não desbloqueado - tentando desbloquear...");
       unlockAudio(chosen);
       // Aguardar um pouco para o desbloqueio
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -97,7 +89,6 @@ export async function playSound(file?: string) {
     audioEl.volume = 1.0;
 
     await audioEl.play();
-    console.log(`🎵 Som customizado reproduzido: ${chosen}`);
 
     // Padrão de campainha: 3 toques
     for (let i = 0; i < 2; i++) {
@@ -107,18 +98,15 @@ export async function playSound(file?: string) {
             const repeatAudio = new Audio(src);
             repeatAudio.volume = 1.0;
             await repeatAudio.play();
-            console.log(`🔔 Toque da campainha ${i + 2}/3`);
-          } catch (e) {
-            console.log(`Erro no toque ${i + 2}:`, e);
-          }
+          } catch (e) {}
         },
-        (i + 1) * 1000
+        (i + 1) * 1000,
       ); // A cada 1 segundo
     }
   } catch (err) {
     console.warn(
       "⚠️ Falha ao tocar áudio customizado (provável bloqueio de autoplay):",
-      err
+      err,
     );
   }
 }

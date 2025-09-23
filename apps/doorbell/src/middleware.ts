@@ -38,7 +38,6 @@ const unprotectedPages = [
 export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
-    console.log(`🛡️ NextAuth Middleware executando para: ${pathname}`);
 
     // ✅ Permitir arquivos estáticos
     if (
@@ -50,7 +49,6 @@ export default withAuth(
       pathname.startsWith("/icons/") ||
       pathname.includes(".")
     ) {
-      console.log(`📁 Arquivo estático permitido: ${pathname}`);
       return NextResponse.next();
     }
 
@@ -60,7 +58,6 @@ export default withAuth(
     );
 
     if (isUnprotectedPage) {
-      console.log(`🔓 Página não protegida: ${pathname}`);
       return NextResponse.next();
     }
 
@@ -70,16 +67,8 @@ export default withAuth(
     );
 
     if (isUnprotectedApi) {
-      console.log(`🔓 API não protegida: ${pathname}`);
       return NextResponse.next();
     }
-
-    console.log(`✅ Usuário autenticado acessando: ${pathname}`);
-    console.log(`👤 NextAuth Token:`, {
-      userId: req.nextauth.token?.userId,
-      cpf: req.nextauth.token?.cpf,
-      addressId: req.nextauth.token?.addressId,
-    });
 
     // 💡 OTIMIZAÇÃO: Injetar dados do usuário nos headers para APIs
     const response = NextResponse.next();
@@ -100,8 +89,6 @@ export default withAuth(
       );
       response.headers.set("x-user-name", req.nextauth.token.name || "");
       response.headers.set("x-user-email", req.nextauth.token.email || "");
-
-      console.log(`🔧 Headers injetados para API: ${pathname}`);
     }
 
     return response;
@@ -138,9 +125,6 @@ export default withAuth(
 
         // 🔐 Para rotas protegidas, exigir token válido
         const isAuthenticated = !!token;
-        console.log(
-          `🔐 Verificando autorização para ${pathname}: ${isAuthenticated ? "✅ Autorizado" : "❌ Negado"}`,
-        );
 
         return isAuthenticated;
       },

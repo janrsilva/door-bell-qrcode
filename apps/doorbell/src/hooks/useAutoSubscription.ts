@@ -19,9 +19,6 @@ export function useAutoSubscription() {
       const alreadyConfigured = sessionStorage.getItem(sessionKey);
 
       if (alreadyConfigured) {
-        console.log(
-          "✅ Subscription já foi configurada nesta sessão - pulando"
-        );
         setIsConfigured(true);
         setHasRun(true);
         return;
@@ -31,10 +28,6 @@ export function useAutoSubscription() {
         setHasRun(true); // Marcar como executado
         setIsConfiguring(true);
         setError(null);
-
-        console.log(
-          "🔍 Auto-configuração de subscriptions iniciada após login (primeira vez)"
-        );
 
         // Verificar se navegador suporta push notifications
         if (
@@ -51,26 +44,16 @@ export function useAutoSubscription() {
           await registration.pushManager.getSubscription();
 
         if (existingSubscription) {
-          console.log(
-            "✅ Subscription existente encontrada:",
-            existingSubscription.endpoint.substring(0, 50) + "..."
-          );
-
           // Salvar subscription existente no servidor
-          console.log("💾 Salvando subscription existente no servidor...");
 
           const result =
             await ApiService.subscribeNotifications(existingSubscription);
 
           if (!result.ok) {
             throw new Error(
-              result.error || "Erro ao salvar subscription existente"
+              result.error || "Erro ao salvar subscription existente",
             );
           }
-
-          console.log(
-            "✅ Subscription existente salva no servidor com sucesso"
-          );
 
           // Marcar como configurado nesta sessão
           const sessionKey = `subscription_configured_${session.user.id}`;
@@ -80,18 +63,12 @@ export function useAutoSubscription() {
           return;
         }
 
-        console.log(
-          "❌ Nenhuma subscription encontrada - configurando automaticamente..."
-        );
-
         // Solicitar permissão de notificação
         const permission = await Notification.requestPermission();
 
         if (permission !== "granted") {
           throw new Error(`Permissão de notificação ${permission}`);
         }
-
-        console.log("✅ Permissão concedida - criando subscription...");
 
         // Verificar VAPID key
         const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -110,19 +87,12 @@ export function useAutoSubscription() {
           applicationServerKey: vapidPublicKey,
         });
 
-        console.log(
-          "✅ Subscription criada:",
-          subscription.endpoint.substring(0, 50) + "..."
-        );
-
         // Salvar subscription no servidor
         const result = await ApiService.subscribeNotifications(subscription);
 
         if (!result.ok) {
           throw new Error(result.error || "Erro ao salvar subscription");
         }
-
-        console.log("✅ Subscription salva no servidor com sucesso");
 
         // Marcar como configurado nesta sessão
         const sessionKey = `subscription_configured_${session.user.id}`;

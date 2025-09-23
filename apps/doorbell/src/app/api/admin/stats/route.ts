@@ -9,21 +9,12 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    console.log("📊 === API ADMIN STATS INICIADA ===");
-
     // Obter dados do usuário da sessão NextAuth
     const authUser = await getAuthUserFromRequest(req);
 
     if (!authUser) {
-      console.log("❌ Token inválido ou ausente");
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
-
-    console.log(`✅ Usuário autenticado:`, {
-      userId: authUser.userId,
-      addressId: authUser.addressId,
-      cpf: authUser.cpf,
-    });
 
     const prisma = new PrismaClient();
 
@@ -83,7 +74,7 @@ export async function GET(req: NextRequest) {
         error: "Erro interno do servidor",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

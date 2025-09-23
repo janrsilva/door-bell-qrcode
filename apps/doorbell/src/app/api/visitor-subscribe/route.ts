@@ -17,7 +17,6 @@ setInterval(() => {
   for (const [visitId, data] of visitorSubscriptions.entries()) {
     if (data.timestamp < fiveMinutesAgo) {
       visitorSubscriptions.delete(visitId);
-      console.log(`🗑️ Visitor subscription expirada: ${visitId}`);
     }
   }
 }, 60000); // Cleanup a cada minuto
@@ -29,11 +28,9 @@ export async function POST(req: NextRequest) {
     if (!visitId || !subscription) {
       return NextResponse.json(
         { error: "Missing visitId or subscription" },
-        { status: 400 }
+        { status: 400 },
       );
     }
-
-    console.log("📱 Registrando visitor subscription:", visitId);
 
     // Armazenar subscription temporária do visitante
     visitorSubscriptions.set(visitId, {
@@ -50,7 +47,7 @@ export async function POST(req: NextRequest) {
     console.error("❌ Erro ao registrar visitor subscription:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -63,7 +60,7 @@ export async function GET(req: NextRequest) {
   if (!visitId) {
     return NextResponse.json(
       { error: "Missing visitId parameter" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -72,7 +69,7 @@ export async function GET(req: NextRequest) {
   if (!visitorData) {
     return NextResponse.json(
       { error: "Visitor subscription not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 

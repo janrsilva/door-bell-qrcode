@@ -48,7 +48,6 @@ export class UserService {
    */
   static async createUser(userData: CreateUserData): Promise<CreateUserResult> {
     try {
-      console.log("UserService: Creating user with data:", userData);
 
       const prisma = await this.getPrisma();
 
@@ -79,10 +78,6 @@ export class UserService {
             longitude: userData.longitude,
           },
         });
-        console.log("UserService: New address created:", address);
-      } else {
-        console.log("UserService: Existing address found:", address);
-      }
 
       // Hash the password
       const hashedPassword = await bcrypt.hash(userData.password, 12);
@@ -102,7 +97,6 @@ export class UserService {
         },
       });
 
-      console.log("UserService: User created successfully:", user);
 
       return {
         success: true,

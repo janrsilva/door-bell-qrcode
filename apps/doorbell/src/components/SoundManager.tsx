@@ -5,21 +5,14 @@ import { getSoundConfig, playSound, unlockAudio } from "@/lib/sound";
 
 export function SoundManager() {
   useEffect(() => {
-    console.log("🎵 SoundManager inicializado");
-
     // Listener de mensagens do SW
     const onMessage = (event: MessageEvent) => {
       const data = event.data || {};
       if (data.type === "PLAY_CUSTOM_SOUND") {
-        console.log("📱 Mensagem do SW recebida:", data);
-
         // Só tenta tocar se a aba estiver visível (foreground)
         if (document.visibilityState === "visible") {
-          console.log("👁️ Aba visível - tocando som customizado");
           // Toca o som sugerido ou o configurado
           playSound(data.sound);
-        } else {
-          console.log("👁️ Aba não visível - usando som padrão do sistema");
         }
       }
     };
@@ -30,7 +23,6 @@ export function SoundManager() {
 
     // "Desbloqueio" de áudio: se o usuário interagir, preparamos o player
     const onFirstInteraction = () => {
-      console.log("🔓 Primeira interação detectada - desbloqueando áudio");
       const cfg = getSoundConfig();
       unlockAudio(cfg.file);
       window.removeEventListener("click", onFirstInteraction);

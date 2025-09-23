@@ -23,12 +23,10 @@ export class PDFService {
    */
   static async generateDoorbellPDF(options: PDFOptions): Promise<PDFResult> {
     try {
-      console.log("PDFService: Generating PDF for user:", options.userId);
-
       // Generate QR code for PDF (higher resolution)
       const qrResult = await QRCodeService.generateQRForPDF(
         options.addressUuid || String(options.userId), // fallback to userId as string
-        options.houseNumber
+        options.houseNumber,
       );
 
       if (!qrResult.qrCodeDataURL) {
@@ -41,7 +39,7 @@ export class PDFService {
       // Load Handlebars template
       const templatePath = join(
         process.cwd(),
-        "src/lib/templates/doorbell-pdf.hbs"
+        "src/lib/templates/doorbell-pdf.hbs",
       );
       const templateSource = readFileSync(templatePath, "utf8");
       const template = Handlebars.compile(templateSource);
@@ -56,8 +54,6 @@ export class PDFService {
 
       // Generate HTML from template
       const html = template(templateData);
-
-      console.log("PDFService: HTML generated, starting PDF generation...");
 
       // Launch Puppeteer
       const browser = await puppeteer.launch({
@@ -84,8 +80,6 @@ export class PDFService {
       });
 
       await browser.close();
-
-      console.log("PDFService: PDF generated successfully");
 
       return {
         success: true,

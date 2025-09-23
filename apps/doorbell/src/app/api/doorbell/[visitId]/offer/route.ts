@@ -38,12 +38,6 @@ export async function POST(
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
 
-    console.log("🔍 [OFFER_API] Visit encontrada:", {
-      visitId,
-      addressUuid: visit.address.addressUuid,
-      address: visit.address,
-    });
-
     const now = new Date().toISOString();
     const app = getFirebaseAdminApp();
     const db = getDatabase(app);

@@ -46,14 +46,12 @@ export default function GoogleMapWrapper({
             lng: position.coords.longitude,
           });
         },
-        (error) => {
-          console.log("Localização atual não disponível:", error.message);
-        },
+        (error) => {},
         {
           enableHighAccuracy: true,
           timeout: 10000,
           maximumAge: 60000,
-        }
+        },
       );
     }
   }, [showCurrentLocation]);
@@ -69,7 +67,7 @@ export default function GoogleMapWrapper({
       const lng = e.latLng.lng();
       onPositionChange({ lat, lng });
     },
-    [onPositionChange]
+    [onPositionChange],
   );
 
   const handleMapClick = useCallback(
@@ -79,7 +77,7 @@ export default function GoogleMapWrapper({
       const lng = e.latLng.lng();
       onPositionChange({ lat, lng });
     },
-    [disabled, onPositionChange]
+    [disabled, onPositionChange],
   );
 
   // Se não tem API key, mostra campos manuais

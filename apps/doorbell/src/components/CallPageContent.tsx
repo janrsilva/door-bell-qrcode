@@ -112,7 +112,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
     // Event listener para instalação bem-sucedida
     const handleAppInstalled = () => {
-      console.log("PWA instalado com sucesso");
       setIsInstalled(true);
       setIsInstallable(false);
       setShowInstallBanner(false);
@@ -131,8 +130,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     // Listen for WebRTC signals from service worker
     const handleServiceWorkerMessage = async (event: MessageEvent) => {
       if (event.data && event.data.type === "WEBRTC_SIGNAL") {
-        console.log("📞 Sinal WebRTC recebido via FCM:", event.data);
-
         const signal = event.data.signal;
 
         if (signal.type === "offer") {
@@ -153,10 +150,8 @@ export function CallPageContent({ user }: CallPageContentProps) {
           }
         } else if (signal.type === "answer") {
           // Resposta recebida - repassar para WebRTC service
-          console.log("📞 Answer recebido via FCM");
         } else if (signal.type === "candidate") {
           // ICE candidate recebido - repassar para WebRTC service
-          console.log("📞 ICE candidate recebido via FCM");
         }
       }
     };
@@ -258,10 +253,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     try {
       setShowVoiceCallDialog(false);
 
-      console.log(
-        "📞 Funcionalidade de chamada antiga desabilitada - usando voice-call-firebase",
-      );
-
       setIncomingVoiceCall(null);
     } catch (error) {
       console.error("Error accepting voice call:", error);
@@ -306,8 +297,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const playRingSound = async () => {
     try {
-      console.log("🔔 Testando som da campainha...");
-
       // Primeiro desbloquear áudio se necessário
       const cfg = getSoundConfig();
       unlockAudio(cfg.file);
@@ -317,8 +306,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
       // Tocar som usando a nova lib
       await playSound("doorbell.mp3");
-
-      console.log("🎵 Som da campainha testado com sucesso");
     } catch (error) {
       console.error("❌ Erro ao testar som da campainha:", error);
     }
@@ -331,7 +318,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
       });
 
       if (response.ok) {
-        console.log("✅ Push test enviado!");
       } else {
         console.error("❌ Erro no push test:", await response.text());
       }
@@ -342,7 +328,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const testUserProfile = async () => {
     try {
-      console.log("🔍 Testando API de perfil...");
       const result = await ApiService.getUserProfile();
       if (result.ok) {
         alert(`✅ API Perfil: ${JSON.stringify(result.data, null, 2)}`);
@@ -357,7 +342,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const testAdminStats = async () => {
     try {
-      console.log("📊 Testando API de stats...");
       const result = await ApiService.getAdminStats();
       if (result.ok) {
         alert(`✅ API Stats: ${JSON.stringify(result.data, null, 2)}`);
@@ -372,7 +356,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const testDebugMiddleware = async () => {
     try {
-      console.log("🛡️ Testando middleware...");
       const result = await ApiService.debugMiddleware();
       if (result.ok) {
         alert(`✅ Middleware: ${JSON.stringify(result.data, null, 2)}`);
@@ -387,11 +370,9 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const debugSubscriptions = async () => {
     try {
-      console.log("🔍 Debugando subscriptions...");
       const result = await ApiService.debugSubscriptions();
       if (result.ok) {
         const data = result.data;
-        console.log("📊 Debug subscriptions:", data);
 
         let report = `🔍 DEBUG SUBSCRIPTIONS:\n\n`;
         report += `📊 Total: ${data.total}\n\n`;
@@ -426,8 +407,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
   const forceUpdatePWA = async () => {
     try {
-      console.log("🔄 Forçando atualização do PWA...");
-
       if (!("serviceWorker" in navigator)) {
         alert("❌ Service Worker não suportado neste navegador");
         return;
@@ -435,28 +414,23 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
       // Remover todos os service workers
       const registrations = await navigator.serviceWorker.getRegistrations();
-      console.log(`🗑️ Removendo ${registrations.length} service workers...`);
 
       for (const registration of registrations) {
         await registration.unregister();
-        console.log("✅ Service Worker removido");
       }
 
       // Limpar cache
       if ("caches" in window) {
         const cacheNames = await caches.keys();
-        console.log(`🗑️ Limpando ${cacheNames.length} caches...`);
 
         for (const cacheName of cacheNames) {
           await caches.delete(cacheName);
-          console.log(`✅ Cache removido: ${cacheName}`);
         }
       }
 
       // Limpar localStorage e sessionStorage relacionado ao PWA
       localStorage.removeItem("notificationsConfigured");
       sessionStorage.clear(); // Limpar controle de execução do hook
-      console.log("🗑️ localStorage e sessionStorage limpos");
 
       alert(
         "✅ PWA atualizado! A página será recarregada em 2 segundos para aplicar as mudanças.",
@@ -612,9 +586,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
         {/* Available Calls */}
         <AvailableCalls
           addressUuid={user.address.addressUuid}
-          onCallAccepted={(visitId: string) => {
-            console.log("Chamada aceita:", visitId);
-          }}
+          onCallAccepted={(visitId: string) => {}}
         />
 
         {/* WebRTC Voice Call Component */}

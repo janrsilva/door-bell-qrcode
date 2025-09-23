@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 // PUT - Atualizar usuário
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const resolvedParams = await params;
   try {
@@ -27,12 +27,10 @@ export async function PUT(
     }
 
     const body = await req.json();
-    console.log("API User Update: Body received", body);
 
     // Validar dados sem password
     const editSchema = registrationSchema.omit({ password: true });
     const validatedData = editSchema.parse(body);
-    console.log("API User Update: Data validated", validatedData);
 
     // Atualizar usuário usando service
     const result = await UserService.updateUser(userId, validatedData);
@@ -59,7 +57,7 @@ export async function PUT(
     if (error.name === "ZodError") {
       return NextResponse.json(
         { error: "Dados inválidos", details: error.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -74,13 +72,13 @@ export async function PUT(
             stack: error.stack,
           },
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -88,7 +86,7 @@ export async function PUT(
 // GET - Buscar dados do usuário
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const resolvedParams = await params;
   try {
@@ -112,7 +110,7 @@ export async function GET(
     if (!user) {
       return NextResponse.json(
         { error: "Usuário não encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -141,13 +139,13 @@ export async function GET(
             stack: error.stack,
           },
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

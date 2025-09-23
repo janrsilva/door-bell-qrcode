@@ -9,28 +9,19 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("🔐 === SUBSCRIPTION REQUEST ===");
-
     // Obter dados do usuário da sessão NextAuth
     const session = await getAuthSession();
 
     if (!session?.user) {
-      console.log("❌ Usuário não autenticado");
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
-
-    console.log(`✅ Usuário autenticado:`, {
-      userId: session.user.id,
-      addressId: session.user.addressId,
-      cpf: session.user.cpf,
-    });
 
     const { subscription } = await req.json();
 
     if (!subscription || !subscription.endpoint) {
       return NextResponse.json(
         { error: "Subscription inválida" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -38,15 +29,8 @@ export async function POST(req: NextRequest) {
     const savedSubscription = await saveSubscription(
       session.user.id,
       session.user.addressId,
-      subscription
+      subscription,
     );
-
-    console.log("✅ Push subscription salva no banco:", {
-      id: savedSubscription.id,
-      endpoint: subscription.endpoint.substring(0, 50) + "...",
-      addressId: session.user.addressId,
-      userId: session.user.id,
-    });
 
     return NextResponse.json({
       success: true,
@@ -57,7 +41,7 @@ export async function POST(req: NextRequest) {
     console.error("❌ Erro ao salvar subscription:", error);
     return NextResponse.json(
       { error: error.message || "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -88,7 +72,7 @@ export async function GET() {
     console.error("❌ Erro ao buscar subscriptions:", error);
     return NextResponse.json(
       { error: error.message || "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

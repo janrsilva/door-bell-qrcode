@@ -18,8 +18,6 @@ export async function POST(
       );
     }
 
-    console.log("🔍 [ICE_API] Recebendo ICE candidate para visit:", visitId);
-
     // Buscar a visit para obter o addressUuid
     const visit = await prisma.doorbellVisit.findUnique({
       where: { uuid: visitId },
@@ -29,11 +27,6 @@ export async function POST(
     if (!visit || !visit.address) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
-
-    console.log("🔍 [ICE_API] Visit encontrada:", {
-      visitId,
-      addressUuid: visit.address.addressUuid,
-    });
 
     const now = new Date().toISOString();
     const app = getFirebaseAdminApp();
@@ -59,8 +52,6 @@ export async function POST(
 
     await addressVisitCandidatesRef.push(payload);
     await onCallVisitCandidatesRef.push(payload);
-
-    console.log("✅ [ICE_API] ICE candidate salvo no Firebase");
 
     return NextResponse.json({ success: true });
   } catch (error) {

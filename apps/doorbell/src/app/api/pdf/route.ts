@@ -14,27 +14,20 @@ export async function GET(req: NextRequest) {
     if (!addressUuid) {
       return NextResponse.json(
         { error: "addressUuid é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
-
-    console.log(
-      "API PDF: Generating PDF for address:",
-      addressUuid,
-      "house:",
-      houseNumber
-    );
 
     // Generate QR code for PDF (higher resolution)
     const qrResult = await QRCodeService.generateQRForPDF(
       addressUuid,
-      houseNumber || undefined
+      houseNumber || undefined,
     );
 
     if (!qrResult.qrCodeDataURL) {
       return NextResponse.json(
         { error: "Erro ao gerar QR code" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -170,8 +163,6 @@ export async function GET(req: NextRequest) {
 
     await browser.close();
 
-    console.log("API PDF: PDF generated successfully");
-
     // Return PDF buffer
     return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
@@ -191,7 +182,7 @@ export async function GET(req: NextRequest) {
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

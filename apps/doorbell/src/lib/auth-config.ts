@@ -13,27 +13,24 @@ export const authOptions: NextAuthOptions = {
       id: "credentials",
       name: "CPF e Senha",
       credentials: {
-        cpf: { 
-          label: "CPF", 
-          type: "text", 
-          placeholder: "000.000.000-00" 
+        cpf: {
+          label: "CPF",
+          type: "text",
+          placeholder: "000.000.000-00",
         },
-        password: { 
-          label: "Senha", 
-          type: "password" 
-        }
+        password: {
+          label: "Senha",
+          type: "password",
+        },
       },
       async authorize(credentials) {
         if (!credentials?.cpf || !credentials?.password) {
-          console.log("❌ Credenciais incompletas");
           return null;
         }
 
         try {
           // Limpar CPF (remover pontos e traços)
           const cleanCpf = credentials.cpf.replace(/[.-]/g, "");
-          
-          console.log(`🔍 Procurando usuário com CPF: ${cleanCpf}`);
 
           // Buscar usuário no banco
           const user = await prisma.user.findFirst({
@@ -49,22 +46,18 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!user) {
-            console.log(`❌ Usuário não encontrado para CPF: ${cleanCpf}`);
             return null;
           }
 
           // Verificar senha
           const isValidPassword = await bcrypt.compare(
             credentials.password,
-            user.password
+            user.password,
           );
 
           if (!isValidPassword) {
-            console.log(`❌ Senha inválida para usuário: ${user.id}`);
             return null;
           }
-
-          console.log(`✅ Login bem-sucedido para usuário: ${user.id}`);
 
           // Retornar dados do usuário para a sessão
           return {
@@ -121,4 +114,3 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || "seu-nextauth-secret-super-seguro",
   debug: process.env.NODE_ENV === "development",
 };
-

@@ -54,7 +54,7 @@ class ApiService {
    */
   static async request<T = any>(
     url: string,
-    options: ApiOptions = {}
+    options: ApiOptions = {},
   ): Promise<ApiResponse<T>> {
     try {
       const {
@@ -63,9 +63,6 @@ class ApiService {
         headers = {},
         requireAuth = this.needsAuth(url),
       } = options;
-
-      console.log(`🌐 API Request: ${method} ${url}`);
-      console.log(`🔐 Requires auth: ${requireAuth}`);
 
       // Preparar headers
       const requestHeaders: Record<string, string> = {
@@ -76,9 +73,6 @@ class ApiService {
       // NextAuth gerencia autenticação automaticamente via cookies
       // Não precisamos adicionar tokens manualmente
       if (requireAuth) {
-        console.log(
-          "🔐 Rota protegida - NextAuth gerencia autenticação via cookies"
-        );
       }
 
       // Fazer a requisição
@@ -88,13 +82,8 @@ class ApiService {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      console.log(`📊 Response: ${response.status} ${response.statusText}`);
-
       // Se 401, NextAuth redirecionará automaticamente para login
       if (response.status === 401 && requireAuth) {
-        console.log(
-          "❌ Não autenticado (401) - NextAuth gerencia redirecionamento"
-        );
       }
 
       // Parsear resposta
@@ -102,7 +91,6 @@ class ApiService {
       try {
         data = await response.json();
       } catch (parseError) {
-        console.log("⚠️ Resposta não é JSON válido");
         data = null as T;
       }
 
@@ -118,7 +106,6 @@ class ApiService {
       if (!response.ok) {
         console.error(`❌ API Error: ${result.error}`);
       } else {
-        console.log("✅ API Success");
       }
 
       return result;
@@ -143,7 +130,7 @@ class ApiService {
   static post<T = any>(
     url: string,
     body?: any,
-    options: Omit<ApiOptions, "method" | "body"> = {}
+    options: Omit<ApiOptions, "method" | "body"> = {},
   ) {
     return this.request<T>(url, { ...options, method: "POST", body });
   }
@@ -151,14 +138,14 @@ class ApiService {
   static put<T = any>(
     url: string,
     body?: any,
-    options: Omit<ApiOptions, "method" | "body"> = {}
+    options: Omit<ApiOptions, "method" | "body"> = {},
   ) {
     return this.request<T>(url, { ...options, method: "PUT", body });
   }
 
   static delete<T = any>(
     url: string,
-    options: Omit<ApiOptions, "method"> = {}
+    options: Omit<ApiOptions, "method"> = {},
   ) {
     return this.request<T>(url, { ...options, method: "DELETE" });
   }
@@ -179,7 +166,7 @@ class ApiService {
     return this.post(
       "/api/ring",
       { visitUuid, coords },
-      { requireAuth: false }
+      { requireAuth: false },
     );
   }
 
@@ -201,7 +188,7 @@ class ApiService {
     return this.post(
       "/api/debug/test-real-push",
       { addressId },
-      { requireAuth: false }
+      { requireAuth: false },
     );
   }
 

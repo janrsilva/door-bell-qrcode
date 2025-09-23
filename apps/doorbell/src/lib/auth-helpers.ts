@@ -19,7 +19,6 @@ export function getAuthUserFromHeaders(req: NextRequest) {
 
     // Se middleware injetou headers, usar eles (mais eficiente)
     if (userId && cpf && addressId) {
-      console.log("🚀 Usando dados do middleware (otimizado)");
       return {
         userId: parseInt(userId),
         cpf,
@@ -32,7 +31,6 @@ export function getAuthUserFromHeaders(req: NextRequest) {
       };
     }
 
-    console.log("⚠️ Headers não disponíveis, fallback para sessão");
     return null;
   } catch (error) {
     console.error("❌ Erro ao obter dados dos headers:", error);
@@ -50,7 +48,6 @@ export async function getAuthUserFromRequest(req: NextRequest) {
     }
 
     // 🐌 FALLBACK: Verificar sessão (caso headers não estejam disponíveis)
-    console.log("🔄 Fallback: Verificando sessão diretamente");
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {

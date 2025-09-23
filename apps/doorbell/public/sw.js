@@ -9,10 +9,10 @@ const urlsToCache = [
 
 // Instalação do Service Worker
 self.addEventListener("install", (event) => {
-  console.log("🔧 Service Worker instalando...");
+  console.log("Service Worker instalando...");
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log("📦 Cache aberto");
+      console.log("Cache aberto");
       return cache.addAll(urlsToCache);
     }),
   );
@@ -21,7 +21,7 @@ self.addEventListener("install", (event) => {
 
 // Ativação do Service Worker
 self.addEventListener("activate", (event) => {
-  console.log("✅ Service Worker ativado");
+  console.log("Service Worker ativado");
   event.waitUntil(self.clients.claim()); // Assume controle imediatamente
 });
 
@@ -37,7 +37,7 @@ self.addEventListener("fetch", (event) => {
 
 // LISTENER PRINCIPAL - Recebe push e exibe notificação
 self.addEventListener("push", (event) => {
-  console.log("📞 === PUSH RECEBIDO NO SERVICE WORKER ===");
+  console.log("=== PUSH RECEBIDO NO SERVICE WORKER ===");
 
   let data = {};
   try {
@@ -48,7 +48,7 @@ self.addEventListener("push", (event) => {
     } catch {}
   }
 
-  const title = data.title || "🔔 Campainha Tocando!";
+  const title = data.title || "Campainha Tocando!";
   const body = data.body || "Alguém está na sua porta";
   const tag = data.tag || "doorbell-ring";
   const icon = data.icon || "/icons/icon-192x192.png";
@@ -57,7 +57,7 @@ self.addEventListener("push", (event) => {
   // Som sugerido para o cliente (quando app estiver em foreground)
   const suggestedSound = data.sound || "doorbell.mp3";
 
-  console.log("📊 Dados da notificação:", {
+  console.log("Dados da notificação:", {
     title,
     body,
     suggestedSound,
@@ -141,7 +141,7 @@ self.addEventListener("push", (event) => {
 
 // AÇÕES DA NOTIFICAÇÃO
 self.addEventListener("notificationclick", (event) => {
-  console.log("👆 Clique na notificação:", event.action);
+  console.log("Clique na notificação:", event.action);
   event.notification.close();
 
   const action = event.action;
@@ -164,7 +164,7 @@ self.addEventListener("notificationclick", (event) => {
     }
   } else if (action === "ignore" || action === "ignore_call") {
     // Log de chamada ignorada
-    console.log("🔇 Chamada ignorada:", data.visitId, "Tipo:", data.type);
+    console.log("Chamada ignorada:", data.visitId, "Tipo:", data.type);
   } else {
     // Clique na notificação principal - se for chamada de voz, abrir com dados
     if (data.type === "voice_call") {
@@ -187,4 +187,4 @@ self.addEventListener("message", (event) => {
 });
 
 // LOG DE ATIVIDADE
-console.log("🚀 Service Worker carregado - Pronto para receber chamadas!");
+console.log("Service Worker carregado - Pronto para receber chamadas!");

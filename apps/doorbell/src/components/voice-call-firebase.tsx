@@ -155,9 +155,6 @@ export default function VoiceCallFirebase(props: Props) {
 
         if (visitId) {
           try {
-            console.log(
-              `🔚 [CLEANUP] Encerrando chamada para visitId: ${visitId}`,
-            );
             const response = await fetch(`/api/doorbell/${visitId}/end`, {
               method: "POST",
             });
@@ -165,10 +162,6 @@ export default function VoiceCallFirebase(props: Props) {
             if (!response.ok) {
               const payload = await response.json().catch(() => ({}));
               console.error("❌ Falha ao encerrar chamada via API:", payload);
-            } else {
-              console.log(
-                "✅ [CLEANUP] Chamada encerrada com sucesso no servidor",
-              );
             }
           } catch (error) {
             console.error("❌ Falha ao encerrar chamada via API:", error);
@@ -215,9 +208,6 @@ export default function VoiceCallFirebase(props: Props) {
 
       // Se onCallVisit for null/undefined, encerrar automaticamente
       if (!onCallVisitId) {
-        console.log(
-          "🔚 [RESIDENT] onCallVisit removido - encerrando chamada automaticamente",
-        );
         void cleanupCall(false, "Chamada encerrada pelo outro lado");
       }
     });
@@ -276,9 +266,6 @@ export default function VoiceCallFirebase(props: Props) {
       const visitData = (snapshot.val() ?? null) as any;
 
       if (visitData?.status === "ended") {
-        console.log(
-          "🔚 [VISITOR] Visita encerrada detectada - encerrando chamada automaticamente",
-        );
         void cleanupCall(false, "Chamada encerrada pelo outro lado");
       }
     });
@@ -358,9 +345,6 @@ export default function VoiceCallFirebase(props: Props) {
 
       // Se não há peer connection ativa, armazenar para aplicar depois
       if (connectionState === "unset") {
-        console.log(
-          "🧊 [VOICE_CALL] ICE candidate pendente - aguardando peer connection",
-        );
         pendingIceCandidatesRef.current.push(candidate);
         return;
       }
@@ -377,10 +361,6 @@ export default function VoiceCallFirebase(props: Props) {
       connectionState !== "unset" &&
       pendingIceCandidatesRef.current.length > 0
     ) {
-      console.log(
-        `🧊 [VOICE_CALL] Aplicando ${pendingIceCandidatesRef.current.length} ICE candidates pendentes`,
-      );
-
       const candidatesToApply = [...pendingIceCandidatesRef.current];
       pendingIceCandidatesRef.current = [];
 
@@ -631,13 +611,6 @@ export default function VoiceCallFirebase(props: Props) {
 
   // Dados para o card de informações
   const subtitle = "";
-
-  console.log("🔍 [ADDRESS] Debug:", {
-    addressUuid,
-    addressData,
-    subtitle,
-    showFullscreenVideo,
-  });
 
   return (
     <div className="relative">

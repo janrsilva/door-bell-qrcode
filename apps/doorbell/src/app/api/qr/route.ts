@@ -12,20 +12,13 @@ export async function GET(req: NextRequest) {
     if (!addressUuid) {
       return NextResponse.json(
         { error: "addressUuid é obrigatório" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    console.log(
-      "API QR: Generating QR code for address:",
-      addressUuid,
-      "house:",
-      houseNumber
-    );
-
     const result = await QRCodeService.generateDoorbellQR(
       addressUuid,
-      houseNumber || undefined
+      houseNumber || undefined,
     );
 
     if (!result.success) {
@@ -51,7 +44,7 @@ export async function GET(req: NextRequest) {
         details:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -22,7 +22,7 @@ export interface LocationResult {
  */
 export function calculateDistance(
   coord1: Coordinates,
-  coord2: Coordinates
+  coord2: Coordinates,
 ): number {
   const R = 6371e3; // Raio da Terra em metros
   const φ1 = (coord1.lat * Math.PI) / 180; // φ, λ em radianos
@@ -50,7 +50,7 @@ export function calculateDistance(
 export function checkLocationProximity(
   addressCoords: Coordinates,
   visitorCoords: Coordinates,
-  maxDistance: number = 50
+  maxDistance: number = 50,
 ): LocationResult {
   const distance = calculateDistance(addressCoords, visitorCoords);
   const isWithinRange = distance <= maxDistance;
@@ -81,7 +81,7 @@ export function formatDistance(distance: number): string {
  * @returns Promise com coordenadas ou erro
  */
 export function getCurrentLocation(
-  options?: PositionOptions
+  options?: PositionOptions,
 ): Promise<Coordinates> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -91,9 +91,9 @@ export function getCurrentLocation(
 
     // Configurações otimizadas para máxima precisão
     const defaultOptions: PositionOptions = {
-      enableHighAccuracy: true,    // Usar GPS quando disponível
-      timeout: 15000,              // Timeout maior para permitir GPS
-      maximumAge: 0,               // Não usar cache, sempre buscar nova posição
+      enableHighAccuracy: true, // Usar GPS quando disponível
+      timeout: 15000, // Timeout maior para permitir GPS
+      maximumAge: 0, // Não usar cache, sempre buscar nova posição
       ...options,
     };
 
@@ -104,9 +104,6 @@ export function getCurrentLocation(
           lon: position.coords.longitude,
         };
 
-        // Log da precisão obtida para debug
-        console.log(`📍 Localização obtida - Precisão: ${position.coords.accuracy.toFixed(1)}m`);
-        
         resolve(coords);
       },
       (error) => {
@@ -126,7 +123,7 @@ export function getCurrentLocation(
 
         reject(new Error(errorMessage));
       },
-      defaultOptions
+      defaultOptions,
     );
   });
 }
@@ -139,7 +136,7 @@ export function getCurrentLocation(
  */
 export function getHighAccuracyLocation(
   maxAttempts: number = 3,
-  minAccuracy: number = 20
+  minAccuracy: number = 20,
 ): Promise<{ coords: Coordinates; accuracy: number }> {
   return new Promise(async (resolve, reject) => {
     let bestResult: { coords: Coordinates; accuracy: number } | null = null;
@@ -148,18 +145,13 @@ export function getHighAccuracyLocation(
     const tryGetLocation = async (): Promise<void> => {
       try {
         attempts++;
-        console.log(`📍 Tentativa ${attempts}/${maxAttempts} para obter localização precisa...`);
 
         const position = await new Promise<GeolocationPosition>((res, rej) => {
-          navigator.geolocation.getCurrentPosition(
-            res,
-            rej,
-            {
-              enableHighAccuracy: true,
-              timeout: attempts === 1 ? 20000 : 10000, // Mais tempo na primeira tentativa
-              maximumAge: 0, // Sempre buscar nova posição
-            }
-          );
+          navigator.geolocation.getCurrentPosition(res, rej, {
+            enableHighAccuracy: true,
+            timeout: attempts === 1 ? 20000 : 10000, // Mais tempo na primeira tentativa
+            maximumAge: 0, // Sempre buscar nova posição
+          });
         });
 
         const coords = {
@@ -168,37 +160,30 @@ export function getHighAccuracyLocation(
         };
 
         const accuracy = position.coords.accuracy;
-        console.log(`✅ Posição obtida - Precisão: ${accuracy.toFixed(1)}m`);
 
         // Se é a primeira tentativa ou se a precisão melhorou
         if (!bestResult || accuracy < bestResult.accuracy) {
           bestResult = { coords, accuracy };
-          console.log(`🎯 Nova melhor precisão: ${accuracy.toFixed(1)}m`);
         }
 
         // Se atingiu a precisão desejada, retorna
         if (accuracy <= minAccuracy) {
-          console.log(`✅ Precisão desejada atingida: ${accuracy.toFixed(1)}m ≤ ${minAccuracy}m`);
           resolve(bestResult);
           return;
         }
 
         // Se ainda não atingiu o máximo de tentativas, tenta novamente
         if (attempts < maxAttempts) {
-          console.log(`🔄 Tentando melhorar precisão... (atual: ${accuracy.toFixed(1)}m, desejada: ≤${minAccuracy}m)`);
           setTimeout(tryGetLocation, 1000); // Aguarda 1s entre tentativas
         } else {
-          console.log(`✅ Melhor precisão obtida após ${attempts} tentativas: ${bestResult.accuracy.toFixed(1)}m`);
           resolve(bestResult);
         }
       } catch (error) {
         if (bestResult) {
           // Se já tem algum resultado, usa ele
-          console.log(`⚠️ Erro na tentativa ${attempts}, usando melhor resultado: ${bestResult.accuracy.toFixed(1)}m`);
           resolve(bestResult);
         } else if (attempts < maxAttempts) {
           // Tenta novamente
-          console.log(`❌ Erro na tentativa ${attempts}, tentando novamente...`);
           setTimeout(tryGetLocation, 2000);
         } else {
           // Falhou em todas as tentativas
