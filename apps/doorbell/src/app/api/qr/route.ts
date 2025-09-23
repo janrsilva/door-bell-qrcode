@@ -7,7 +7,6 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const addressUuid = searchParams.get("addressUuid");
-    const houseNumber = searchParams.get("houseNumber");
 
     if (!addressUuid) {
       return NextResponse.json(
@@ -16,10 +15,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const result = await QRCodeService.generateDoorbellQR(
-      addressUuid,
-      houseNumber || undefined,
-    );
+    const result = await QRCodeService.generateDoorbellQR(addressUuid);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });

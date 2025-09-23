@@ -17,7 +17,7 @@ interface ApiResponse<T = any> {
 }
 
 class ApiService {
-  private static baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+  private static baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   /**
    * Rotas que NÃO precisam de autenticação
@@ -178,22 +178,6 @@ class ApiService {
   // Debug APIs
   static debugSubscriptions() {
     return this.get("/api/debug/subscriptions", { requireAuth: false });
-  }
-
-  static debugMiddleware() {
-    return this.get("/api/debug/middleware-test");
-  }
-
-  static testRealPush(addressId: number) {
-    return this.post(
-      "/api/debug/test-real-push",
-      { addressId },
-      { requireAuth: false },
-    );
-  }
-
-  static ringDirect() {
-    return this.post("/api/debug/ring-direct", {}, { requireAuth: false });
   }
 
   // Cadastro

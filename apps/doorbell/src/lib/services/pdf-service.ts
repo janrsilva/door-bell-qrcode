@@ -7,7 +7,6 @@ import { QRCodeService } from "./qr-service";
 export interface PDFOptions {
   userId: number;
   addressUuid?: string;
-  houseNumber?: string;
   userName?: string;
 }
 
@@ -26,7 +25,6 @@ export class PDFService {
       // Generate QR code for PDF (higher resolution)
       const qrResult = await QRCodeService.generateQRForPDF(
         options.addressUuid || String(options.userId), // fallback to userId as string
-        options.houseNumber,
       );
 
       if (!qrResult.qrCodeDataURL) {
@@ -47,7 +45,6 @@ export class PDFService {
       // Prepare template data
       const templateData = {
         qrCodeDataUrl: qrResult.qrCodeDataURL,
-        houseNumber: options.houseNumber,
         userName: options.userName,
         userId: options.userId,
       };

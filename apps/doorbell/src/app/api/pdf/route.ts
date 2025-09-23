@@ -8,7 +8,6 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const addressUuid = searchParams.get("addressUuid");
-    const houseNumber = searchParams.get("houseNumber");
     const userName = searchParams.get("userName");
 
     if (!addressUuid) {
@@ -19,10 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Generate QR code for PDF (higher resolution)
-    const qrResult = await QRCodeService.generateQRForPDF(
-      addressUuid,
-      houseNumber || undefined,
-    );
+    const qrResult = await QRCodeService.generateQRForPDF(addressUuid);
 
     if (!qrResult.qrCodeDataURL) {
       return NextResponse.json(
@@ -115,11 +111,6 @@ export async function GET(req: NextRequest) {
         <img src="${
           qrResult.qrCodeDataURL
         }" alt="QR Code da Campainha" class="qr-code" />
-        ${
-          houseNumber
-            ? `<div class="house-number">Casa ${houseNumber}</div>`
-            : ""
-        }
     </div>
 
     <div class="instructions">
@@ -168,7 +159,7 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="campainha-${
-          houseNumber || addressUuid
+          addressUuid
         }.pdf"`,
         "Cache-Control": "no-cache",
       },

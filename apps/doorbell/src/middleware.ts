@@ -16,7 +16,7 @@ const unprotectedApiRoutes = [
 // - /api/notifications/subscribe (configurar push)
 // - /api/user/profile (perfil do usuário)
 // - /api/admin/stats (estatísticas admin)
-// - /api/debug/* (debug APIs)
+// - /api/debug/subscriptions (debug subscriptions)
 
 // 🔓 PÁGINAS que NÃO precisam de autenticação
 const unprotectedPages = [

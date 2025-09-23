@@ -21,7 +21,6 @@ export interface User {
     city: string;
     state: string;
     zipCode: string;
-    houseNumber: string | null;
     addressUuid: string;
     createdAt: Date;
     updatedAt: Date;
@@ -73,7 +72,6 @@ export class UserService {
             city: userData.city,
             state: userData.state,
             zipCode: userData.zipCode,
-            houseNumber: userData.number,
             latitude: userData.latitude,
             longitude: userData.longitude,
           },
@@ -238,7 +236,6 @@ export class UserService {
             ...(zipCode && { zipCode }),
             ...(latitude !== undefined && { latitude }),
             ...(longitude !== undefined && { longitude }),
-            ...(number && { houseNumber: number }),
           },
         });
       }

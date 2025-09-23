@@ -36,7 +36,6 @@ model Address {
   city         String
   state        String
   zipCode      String   @map("zip_code")
-  houseNumber  String?  @map("house_number")
   latitude     Float? // Coordenadas para verificação de proximidade
   longitude    Float?
   addressUuid  String   @unique @default(dbgenerated("gen_random_uuid()")) @map("address_uuid")

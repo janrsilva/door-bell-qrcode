@@ -39,13 +39,13 @@ export class QRCodeService {
     }
   }
 
-  static async generateQRForPDF(
-    addressUuid: string,
-    houseNumber?: string
-  ): Promise<{ qrCodeDataURL: string; visitUrl: string }> {
+  static async generateQRForPDF(addressUuid: string): Promise<{
+    qrCodeDataURL: string;
+    visitUrl: string;
+  }> {
     try {
       // Gerar URL da visita
-      const visitUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/v/${addressUuid}`;
+      const visitUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/v/${addressUuid}`;
 
       // Gerar QR Code com resolução alta para PDF
       const qrCodeDataURL = await QRCode.toDataURL(visitUrl, {
@@ -68,10 +68,7 @@ export class QRCodeService {
     }
   }
 
-  static async generateDoorbellQR(
-    addressUuid: string,
-    houseNumber?: string
-  ): Promise<{
+  static async generateDoorbellQR(addressUuid: string): Promise<{
     success: boolean;
     qrCodeDataUrl?: string;
     visitUrl?: string;
@@ -79,7 +76,7 @@ export class QRCodeService {
   }> {
     try {
       // Gerar URL da visita
-      const visitUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/v/${addressUuid}`;
+      const visitUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/v/${addressUuid}`;
 
       // Gerar QR Code
       const qrCodeDataUrl = await QRCode.toDataURL(visitUrl, {

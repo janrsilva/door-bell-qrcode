@@ -12,14 +12,12 @@ import { useState, useEffect } from "react";
 interface QRDownloadStepProps {
   userId?: number;
   addressUuid?: string;
-  houseNumber?: string;
   onDownloadQR: () => void;
 }
 
 export default function QRDownloadStep({
   userId,
   addressUuid,
-  houseNumber,
   onDownloadQR,
 }: QRDownloadStepProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
@@ -32,15 +30,12 @@ export default function QRDownloadStep({
       const params = new URLSearchParams({
         addressUuid: addressUuid,
       });
-      if (houseNumber) {
-        params.append("houseNumber", houseNumber);
-      }
 
       const qrUrl = `/api/qr?${params.toString()}`;
       setQrCodeUrl(qrUrl);
       setIsLoading(false);
     }
-  }, [addressUuid, houseNumber]);
+  }, [addressUuid]);
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -72,12 +67,6 @@ export default function QRDownloadStep({
               <>
                 <p className="text-sm text-muted-foreground mb-4">
                   UUID do endereço: <strong>{addressUuid}</strong>
-                  {houseNumber && (
-                    <>
-                      <br />
-                      Número da casa: <strong>{houseNumber}</strong>
-                    </>
-                  )}
                 </p>
 
                 {isLoading ? (
@@ -138,7 +127,7 @@ export default function QRDownloadStep({
                 onClick={() => {
                   const link = document.createElement("a");
                   link.href = qrCodeUrl;
-                  link.download = `qr-code-${houseNumber || addressUuid}.png`;
+                  link.download = `qr-code-${addressUuid}.png`;
                   link.click();
                 }}
                 size="lg"

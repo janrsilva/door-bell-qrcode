@@ -311,21 +311,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     }
   };
 
-  const testRealPush = async () => {
-    try {
-      const response = await fetch("/api/debug/test-real-push", {
-        method: "POST",
-      });
-
-      if (response.ok) {
-      } else {
-        console.error("❌ Erro no push test:", await response.text());
-      }
-    } catch (error) {
-      console.error("❌ Erro ao testar push:", error);
-    }
-  };
-
   const testUserProfile = async () => {
     try {
       const result = await ApiService.getUserProfile();
@@ -761,10 +746,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
               🔔 Som da Campainha
             </Button>
 
-            <Button onClick={testRealPush} variant="outline">
-              🧪 Teste Real Push
-            </Button>
-
             <Button
               onClick={() => window.open("/teste-campainha", "_blank")}
               variant="outline"
@@ -786,13 +767,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
             <Button onClick={debugSubscriptions} variant="outline">
               🔍 Debug Subscriptions
-            </Button>
-
-            <Button
-              onClick={() => window.open("/api/debug/ring-direct", "_blank")}
-              variant="outline"
-            >
-              🔔 Ring Direto
             </Button>
           </div>
         </Card>

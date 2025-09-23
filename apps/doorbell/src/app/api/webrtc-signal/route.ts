@@ -29,8 +29,9 @@ export async function POST(req: NextRequest) {
 
     if (targetType === "visitor") {
       // Para enviar para visitante, buscar subscription temporária
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
       const visitorResponse = await fetch(
-        `http://localhost:3333/api/visitor-subscribe?visitId=${visitId}`,
+        `${baseUrl}/api/visitor-subscribe?visitId=${visitId}`,
       );
 
       if (!visitorResponse.ok) {

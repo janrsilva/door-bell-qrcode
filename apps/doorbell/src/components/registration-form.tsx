@@ -127,11 +127,6 @@ export default function RegistrationForm() {
         addressUuid: addressUuid,
       });
 
-      const houseNumber = form.getValues("number");
-      if (houseNumber) {
-        params.append("houseNumber", houseNumber);
-      }
-
       const userName = form.getValues("name");
       if (userName) {
         params.append("userName", userName);
@@ -142,7 +137,7 @@ export default function RegistrationForm() {
       // Create a temporary link to download the PDF
       const link = document.createElement("a");
       link.href = pdfUrl;
-      link.download = `campainha-${houseNumber || addressUuid}.pdf`;
+      link.download = `campainha-${addressUuid}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -165,7 +160,6 @@ export default function RegistrationForm() {
           <QRDownloadStep
             userId={userId}
             addressUuid={addressUuid}
-            houseNumber={form.getValues("number")}
             onDownloadQR={handleDownloadQR}
           />
         );
