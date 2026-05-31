@@ -48,21 +48,25 @@ export default function RingButton({
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
-  // Função para processar o toque da campainha com coordenadas específicas
-  const processRingBell = async (coords: Coordinates) => {
+  // Revalida a localização no momento do toque para evitar coordenadas antigas.
+  const processRingBell = async () => {
     try {
       setSubmitting(true);
       setOk(null);
-      setMsg("🔔 Tocando campainha...");
+      setMsg("Obtendo localização precisa...");
 
       // Optional: vibrate device for instant feedback
       if (navigator?.vibrate) navigator.vibrate(20);
 
+      const preciseResult = await getHighAccuracyLocation(2, 15);
+      const ringCoords = preciseResult.coords;
+      setMsg(`Localização obtida (±${preciseResult.accuracy.toFixed(0)}m)`);
+
       // Ring the bell using API Service
       const result = await ApiService.ringBell(visit.uuid, {
-        lat: coords.lat,
-        lon: coords.lon,
-        acc: 20,
+        lat: ringCoords.lat,
+        lon: ringCoords.lon,
+        acc: preciseResult.accuracy,
       });
 
       if (!result.ok) {
@@ -70,7 +74,7 @@ export default function RingButton({
       }
 
       setOk(true);
-      setMsg("✅ Campainha tocada com sucesso! O morador foi notificado.");
+      setMsg("✅ Campainha tocada com sucesso!");
 
       // Vibrar novamente para confirmar sucesso
       if (navigator?.vibrate) {
@@ -142,7 +146,7 @@ export default function RingButton({
 
           // Aguardar um momento e então tocar a campainha diretamente
           setTimeout(async () => {
-            await processRingBell(result.coords!);
+            await processRingBell();
           }, 300);
           return;
         } else {
@@ -222,78 +226,7 @@ export default function RingButton({
       return;
     }
 
-    setSubmitting(true);
-    setOk(null);
-    setMsg("");
-
-    try {
-      // Optional: vibrate device for instant feedback
-      if (navigator?.vibrate) navigator.vibrate(20);
-
-      // Obter localização de alta precisão no momento do toque
-      let coords: { lat?: number; lon?: number; acc?: number } = {};
-
-      try {
-        setMsg("Obtendo localização precisa...");
-
-        // Tentar obter localização de alta precisão
-        const preciseResult = await getHighAccuracyLocation(2, 15); // 2 tentativas, 15m precisão
-
-        coords = {
-          lat: preciseResult.coords.lat,
-          lon: preciseResult.coords.lon,
-          acc: preciseResult.accuracy,
-        };
-
-        setMsg(`Localização obtida (±${preciseResult.accuracy.toFixed(0)}m)`);
-
-        // Aguardar um momento para mostrar a mensagem
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      } catch (error) {
-        // Fallback: usar coordenadas do LocationTracker se disponíveis
-        if (visitorCoords) {
-          coords = {
-            lat: visitorCoords.lat,
-            lon: visitorCoords.lon,
-            acc: 20, // Assumir precisão moderada
-          };
-        }
-      }
-
-      // Ring the bell using API Service
-      const result = await ApiService.ringBell(visit.uuid, coords);
-
-      if (!result.ok) {
-        throw new Error(result.error || "Erro ao tocar a campainha");
-      }
-
-      setOk(true);
-      setMsg("✅ Campainha tocada com sucesso! O morador foi notificado.");
-
-      // Vibrar novamente para confirmar sucesso
-      if (navigator?.vibrate) {
-        navigator.vibrate([100, 50, 100]);
-      }
-
-      // Iniciar countdown de 60 segundos para poder tocar novamente
-      setCountdown(60);
-      const countdownInterval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval);
-            setOk(null);
-            setMsg("");
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } catch (e: any) {
-      setOk(false);
-      setMsg(e?.message || "Falha ao tocar a campainha");
-    } finally {
-      setSubmitting(false);
-    }
+    await processRingBell();
   }
 
   return (
@@ -317,14 +250,12 @@ export default function RingButton({
 
       {ok === true && (
         <div className="text-center space-y-2">
-          <p className="text-sm text-green-600 font-medium">✅ {msg}</p>
+          <p className="text-sm text-green-600 font-medium">{msg}</p>
           <div className="text-xs text-green-500 space-y-1">
-            <p>📱 O morador recebeu uma notificação push</p>
-            <p>🔔 O telefone dele tocou automaticamente</p>
-            <p>⏰ Aguarde a resposta do morador</p>
+            <p>Enviamos uma notificação no celular do morador</p>
             {countdown > 0 && (
               <p className="text-blue-500 font-medium">
-                ⏳ Pode tocar novamente em {countdown}s
+                Você pode tocar novamente em {countdown}s
               </p>
             )}
           </div>
@@ -372,7 +303,8 @@ export default function RingButton({
                 <p className="font-medium">Próximo passo:</p>
                 <p>
                   O navegador irá solicitar permissão para acessar sua
-                  localização. Clique em "Permitir" quando aparecer o popup.
+                  localização. Clique em &quot;Permitir&quot; quando aparecer o
+                  popup.
                 </p>
               </div>
             </div>

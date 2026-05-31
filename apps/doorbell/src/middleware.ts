@@ -1,7 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
-// 🔓 EXCEÇÕES - APIs que NÃO precisam de autenticação (mais seguro!)
+// EXCEÇÕES - APIs que NÃO precisam de autenticação (mais seguro!)
 const unprotectedApiRoutes = [
   "/api/auth/", // NextAuth APIs (login, session, etc.)
   "/api/register", // Cadastro de novos usuários
@@ -10,15 +10,16 @@ const unprotectedApiRoutes = [
   "/api/pdf", // Gerar PDFs (visitantes)
   "/api/visit", // Buscar dados de visita (visitantes)
   "/api/ring", // Tocar campainha (visitantes)
+  "/api/waitlist", // Lista de espera (pública)
 ];
 
-// 🔐 APIs que PRECISAM de autenticação (protegidas automaticamente):
+// APIs que PRECISAM de autenticação (protegidas automaticamente):
 // - /api/notifications/subscribe (configurar push)
 // - /api/user/profile (perfil do usuário)
 // - /api/admin/stats (estatísticas admin)
 // - /api/debug/subscriptions (debug subscriptions)
 
-// 🔓 PÁGINAS que NÃO precisam de autenticação
+// PÁGINAS que NÃO precisam de autenticação
 const unprotectedPages = [
   "/", // Home page
   "/cadastro", // Registro de usuários
@@ -26,10 +27,9 @@ const unprotectedPages = [
   "/auth/error", // Erro NextAuth
   "/use", // Páginas de visitantes
   "/v", // Páginas de visitantes (alternativa)
-  "/campainha-tocada", // Confirmação pós-campainha
 ];
 
-// 🔐 PÁGINAS que PRECISAM de autenticação (protegidas pelo HOC):
+// PÁGINAS que PRECISAM de autenticação (protegidas pelo HOC):
 // - /resident (morador - withAuthUser)
 // - /admin (administradores - withCpfPermission)
 // - /teste-campainha (usuários logados - withAuth)
@@ -39,7 +39,6 @@ export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
 
-    // ✅ Permitir arquivos estáticos
     if (
       pathname.startsWith("/_next/") ||
       pathname.startsWith("/favicon") ||
@@ -52,7 +51,6 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    // ✅ Permitir páginas não protegidas
     const isUnprotectedPage = unprotectedPages.some((route) =>
       pathname.startsWith(route),
     );
@@ -61,7 +59,6 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    // ✅ Permitir APIs não protegidas
     const isUnprotectedApi = unprotectedApiRoutes.some((route) =>
       pathname.startsWith(route),
     );
@@ -70,7 +67,7 @@ export default withAuth(
       return NextResponse.next();
     }
 
-    // 💡 OTIMIZAÇÃO: Injetar dados do usuário nos headers para APIs
+    // OTIMIZAÇÃO: Injetar dados do usuário nos headers para APIs
     const response = NextResponse.next();
 
     if (pathname.startsWith("/api/") && req.nextauth.token) {
@@ -98,7 +95,6 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
 
-        // ✅ Sempre permitir arquivos estáticos
         if (
           pathname.startsWith("/_next/") ||
           pathname.startsWith("/favicon") ||
@@ -111,19 +107,16 @@ export default withAuth(
           return true;
         }
 
-        // ✅ Permitir páginas não protegidas
         const isUnprotectedPage = unprotectedPages.some((route) =>
           pathname.startsWith(route),
         );
         if (isUnprotectedPage) return true;
 
-        // ✅ Permitir APIs não protegidas
         const isUnprotectedApi = unprotectedApiRoutes.some((route) =>
           pathname.startsWith(route),
         );
         if (isUnprotectedApi) return true;
 
-        // 🔐 Para rotas protegidas, exigir token válido
         const isAuthenticated = !!token;
 
         return isAuthenticated;

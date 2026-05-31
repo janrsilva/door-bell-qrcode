@@ -1,4 +1,5 @@
 import { RegistrationFormData } from "@/lib/schemas";
+import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
 export interface CreateUserData extends RegistrationFormData {}
@@ -35,21 +36,10 @@ export interface CreateUserResult {
 
 export class UserService {
   /**
-   * Get Prisma client instance
-   */
-  private static async getPrisma() {
-    const { PrismaClient } = await import("@prisma/client");
-    return new PrismaClient();
-  }
-
-  /**
    * Create a new user in the database
    */
   static async createUser(userData: CreateUserData): Promise<CreateUserResult> {
     try {
-
-      const prisma = await this.getPrisma();
-
       // First, try to find or create the address
       let address = await prisma.address.findFirst({
         where: {
@@ -76,6 +66,7 @@ export class UserService {
             longitude: userData.longitude,
           },
         });
+      }
 
       // Hash the password
       const hashedPassword = await bcrypt.hash(userData.password, 12);
@@ -95,17 +86,21 @@ export class UserService {
         },
       });
 
-
       return {
         success: true,
         user,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("UserService: Error creating user:", error);
 
       // Handle Prisma unique constraint errors
-      if (error.code === "P2002") {
-        const field = error.meta?.target?.[0];
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "P2002"
+      ) {
+        const field = (error as any).meta?.target?.[0];
         const fieldNames: Record<string, string> = {
           email: "email",
           cpf: "CPF",
@@ -120,7 +115,8 @@ export class UserService {
 
       return {
         success: false,
-        error: error.message || "Erro interno do servidor",
+        error:
+          error instanceof Error ? error.message : "Erro interno do servidor",
       };
     }
   }
@@ -130,7 +126,6 @@ export class UserService {
    */
   static async findUserById(id: number): Promise<User | null> {
     try {
-      const prisma = await this.getPrisma();
       const user = await prisma.user.findUnique({
         where: { id },
         include: {
@@ -150,7 +145,6 @@ export class UserService {
    */
   static async findUserByEmail(email: string): Promise<User | null> {
     try {
-      const prisma = await this.getPrisma();
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
@@ -170,7 +164,6 @@ export class UserService {
    */
   static async getAllUsers(): Promise<User[]> {
     try {
-      const prisma = await this.getPrisma();
       const users = await prisma.user.findMany({
         include: {
           address: true,
@@ -190,11 +183,9 @@ export class UserService {
    */
   static async updateUser(
     id: number,
-    userData: Partial<CreateUserData>
+    userData: Partial<CreateUserData>,
   ): Promise<CreateUserResult> {
     try {
-      const prisma = await this.getPrisma();
-
       // Buscar o usuário atual para obter o addressId
       const currentUser = await prisma.user.findUnique({
         where: { id },
@@ -253,11 +244,16 @@ export class UserService {
         success: true,
         user,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("UserService: Error updating user:", error);
 
-      if (error.code === "P2002") {
-        const field = error.meta?.target?.[0];
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "P2002"
+      ) {
+        const field = (error as any).meta?.target?.[0];
         const fieldNames: Record<string, string> = {
           email: "email",
           cpf: "CPF",
@@ -271,7 +267,8 @@ export class UserService {
 
       return {
         success: false,
-        error: error.message || "Erro interno do servidor",
+        error:
+          error instanceof Error ? error.message : "Erro interno do servidor",
       };
     }
   }
@@ -280,20 +277,20 @@ export class UserService {
    * Delete a user
    */
   static async deleteUser(
-    id: number
+    id: number,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const prisma = await this.getPrisma();
       await prisma.user.delete({
         where: { id },
       });
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("UserService: Error deleting user:", error);
       return {
         success: false,
-        error: error.message || "Erro interno do servidor",
+        error:
+          error instanceof Error ? error.message : "Erro interno do servidor",
       };
     }
   }

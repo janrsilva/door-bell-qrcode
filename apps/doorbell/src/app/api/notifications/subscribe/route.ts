@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   saveSubscription,
   getActiveSubscriptions,
+  type WebPushSubscription,
 } from "@/lib/services/subscription-service";
 import { getAuthSession } from "@/lib/auth-helpers";
 
@@ -60,12 +61,14 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       total: subscriptions.length,
-      subscriptions: subscriptions.map((sub, index) => ({
-        id: index + 1,
-        addressId: session.user.addressId,
-        endpoint: sub.endpoint.substring(0, 50) + "...",
-        isActive: true,
-      })),
+      subscriptions: subscriptions.map(
+        (sub: WebPushSubscription, index: number) => ({
+          id: index + 1,
+          addressId: session.user.addressId,
+          endpoint: sub.endpoint.substring(0, 50) + "...",
+          isActive: true,
+        }),
+      ),
       message: `${subscriptions.length} subscriptions encontradas para seu endereço`,
     });
   } catch (error: any) {

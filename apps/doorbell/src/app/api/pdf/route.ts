@@ -137,7 +137,14 @@ export async function GET(req: NextRequest) {
     const page = await browser.newPage();
 
     // Set content and wait for images to load
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      () =>
+        Array.from(document.images).every(
+          (image) => image.complete && image.naturalWidth > 0,
+        ),
+      { timeout: 10000 },
+    );
 
     // Generate PDF
     const pdfBuffer = await page.pdf({

@@ -180,6 +180,10 @@ class ApiService {
     return this.get("/api/debug/subscriptions", { requireAuth: false });
   }
 
+  static debugMiddleware() {
+    return this.get("/api/admin/stats");
+  }
+
   // Cadastro
   static register(userData: any) {
     return this.post("/api/register", userData, { requireAuth: false });

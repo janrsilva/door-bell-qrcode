@@ -10,8 +10,10 @@ import { type Coordinates } from "@/lib/utils/latlong";
 import ApiService from "@/lib/api";
 import { getSimpleLocationInstructions } from "@/lib/utils/location-instructions";
 import { useAddress } from "@/contexts/AddressContext";
-import { MAX_DISTANCE } from "@/lib/utils/location-validation";
+import { getMaxDistance, MAX_DISTANCE } from "@/lib/utils/location-validation";
+import { isVisitExpired } from "@/lib/constants";
 import AddressBlock from "@/components/AdressBlock";
+import { LucideAlertTriangle, LucideMapPin } from "lucide-react";
 
 type Props = {
   visit: {
@@ -202,13 +204,11 @@ export default function DoorbellPageClient({ visit }: Props) {
   // );
 
   return (
-    <main className="min-h-dvh flex items-center justify-center p-4">
-      <Card className="max-w-md w-full p-5 space-y-4">
-        <div>
-          <h1 className="text-2xl text-center font-semibold">
-            CAMPAINHA ELETRÔNICA
-          </h1>
-        </div>
+    <main className="min-h-dvh flex items-center justify-center md:p-4">
+      <Card className="max-w-md w-full m-0 p-4 space-y-4 border-none shadow-none md:shadow-md md:rounded-lg md:border">
+        <h1 className="text-2xl text-center font-semibold">
+          CAMPAINHA ELETRÔNICA
+        </h1>
 
         <Separator />
         <AddressBlock addressData={visit.address} />
@@ -327,38 +327,48 @@ export default function DoorbellPageClient({ visit }: Props) {
 
         {/* Location Status - Quando já temos a localização */}
         {visitorCoords && distance !== null && (
-          <Card
-            className={`p-4 ${distance <= 50 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">{distance <= 50 ? "✅" : "❌"}</div>
-              <div className="flex-1">
-                <p
-                  className={`font-medium ${distance <= 50 ? "text-green-800" : "text-red-800"}`}
-                >
-                  {distance <= MAX_DISTANCE
-                    ? "Localização Verificada"
-                    : "Muito Distante"}
-                </p>
-                <p
-                  className={`text-sm ${distance <= MAX_DISTANCE ? "text-green-600" : "text-red-600"}`}
-                >
-                  Você está a {distance.toFixed(0)}m do endereço{" "}
-                  {distance <= MAX_DISTANCE
-                    ? "(dentro do limite)"
-                    : `(máximo: ${MAX_DISTANCE}m)`}
-                </p>
+          <>
+            {getMaxDistance(distance) ? (
+              // Localização OK - Card simples e discreto
+              <div className="text-center py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-center justify-start gap-2">
+                  <div className="text-lg">
+                    <LucideMapPin />
+                  </div>
+                  <p className="text-sm text-gray-600 font-medium">
+                    Sua localização está ativa, {distance.toFixed(0)}m
+                  </p>
+                </div>
               </div>
-            </div>
-          </Card>
+            ) : (
+              // Localização fora do limite - Card destacado para chamar atenção
+              <Card className="p-4 bg-red-50 border-red-200">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">❌</div>
+                  <div className="flex-1">
+                    <p className="font-medium text-red-800">Muito Distante</p>
+                    <p className="text-sm text-red-600">
+                      Você está a {distance.toFixed(0)}m do endereço (máximo:{" "}
+                      {MAX_DISTANCE}m)
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </>
         )}
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-start space-x-2">
-            <div className="text-yellow-600 mt-0.5">⚠️</div>
+            <div className="text-yellow-600 mt-0.5">
+              <LucideAlertTriangle />
+            </div>
             <div>
               <p className="text-yellow-800 font-medium text-sm">
-                SEMPRE CONFIRME O ENDEREÇO
+                <strong className="block text-base">ENTREGADOR</strong>
+                <strong>
+                  SEMPRE CONFIRME O ENDEREÇO E OS DADOS DO DESTINATÁRIO
+                </strong>
               </p>
               <p className="text-yellow-700 text-xs mt-1">
                 <strong>Evite fraudes! </strong>
@@ -383,6 +393,7 @@ export default function DoorbellPageClient({ visit }: Props) {
           startVisitUuid={visit.uuid}
           visitorCoords={visitorCoords}
           distance={distance}
+          disabled={isVisitExpired(visit.createdAt)}
           onCallStart={handleCallStart}
           onRequestLocation={requestLocationOnDemand}
         />

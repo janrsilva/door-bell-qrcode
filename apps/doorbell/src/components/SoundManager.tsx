@@ -21,7 +21,7 @@ export function SoundManager() {
       navigator.serviceWorker.addEventListener("message", onMessage);
     }
 
-    // "Desbloqueio" de áudio: se o usuário interagir, preparamos o player
+    // Desbloqueio" de áudio: se o usuário interagir, preparamos o player
     const onFirstInteraction = () => {
       const cfg = getSoundConfig();
       unlockAudio(cfg.file);

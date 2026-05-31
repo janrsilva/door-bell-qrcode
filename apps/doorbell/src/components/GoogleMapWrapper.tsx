@@ -26,7 +26,7 @@ export default function GoogleMapWrapper({
   disabled = false,
   showCurrentLocation = true,
 }: GoogleMapWrapperProps) {
-  const mapRef = useRef<google.maps.Map>();
+  const mapRef = useRef<google.maps.Map | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{
     lat: number;
     lng: number;

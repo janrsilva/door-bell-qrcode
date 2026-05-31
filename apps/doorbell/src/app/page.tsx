@@ -1,184 +1,275 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function HomePage() {
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<
+    "idle" | "success" | "error"
+  >("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitStatus("idle");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSubmitStatus("success");
+        setFormData({ name: "", phone: "", email: "" });
+      } else {
+        setSubmitStatus("error");
+        setErrorMessage(
+          result.message || "Erro ao adicionar à lista de espera",
+        );
+      }
+    } catch (error) {
+      setSubmitStatus("error");
+      setErrorMessage("Erro de conexão. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center pt-8">
-          <div className="text-6xl mb-4">🔔</div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            CAMPAINHA ELETRÔNICA PWA
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Hero Section */}
+      <div className="px-4 pt-8 pb-12">
+        <div className="max-w-md mx-auto text-center">
+          <div className="text-6xl mb-6">🔔</div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Torne seu celular uma campainha inteligente
           </h1>
-          <p className="text-gray-600 mt-2">
-            Sistema completo de campainha virtual com notificações push
+          <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+            Atenda visitantes de qualquer lugar do mundo, sem custos adicionais.
+            Seu celular com internet vira uma campainha que funciona 24/7.
           </p>
         </div>
+      </div>
 
-        {/* Links Principais */}
-        <div className="grid gap-4">
-          <Card className="p-6">
-            <div className="flex items-center space-x-4">
-              <div className="text-3xl">📱</div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">
-                  Central de Chamadas (PWA)
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Para moradores - receba chamadas da campainha
-                </p>
-              </div>
-              <Button onClick={() => (window.location.href = "/resident")}>
-                Acessar
-              </Button>
-            </div>
-          </Card>
+      {/* Features Section */}
+      <div className="px-4 mb-12">
+        <div className="max-w-md mx-auto space-y-6">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Como funciona?
+            </h2>
+          </div>
 
-          <Card className="p-6">
-            <div className="flex items-center space-x-4">
-              <div className="text-3xl">🚪</div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">Teste da Campainha</h3>
-                <p className="text-gray-600 text-sm">
-                  Simular visitante tocando campainha
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => (window.location.href = "/teste-campainha")}
-              >
-                Testar
-              </Button>
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-6">
-              <div className="flex items-center space-x-4">
-                <div className="text-3xl">🔐</div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">Login</h3>
-                  <p className="text-gray-600 text-sm">Entrar no sistema</p>
+          <div className="space-y-4">
+            <Card className="p-6 bg-white/80 backdrop-blur-sm">
+              <div className="flex items-start space-x-4">
+                <div className="text-3xl">📱</div>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                    Instale no seu celular
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Baixe o app e configure as notificações. Funciona como um
+                    app nativo.
+                  </p>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => (window.location.href = "/auth/login")}
-                >
-                  Login
-                </Button>
               </div>
             </Card>
 
-            <Card className="p-6">
-              <div className="flex items-center space-x-4">
-                <div className="text-3xl">📝</div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">Cadastro</h3>
-                  <p className="text-gray-600 text-sm">Criar nova conta</p>
+            <Card className="p-6 bg-white/80 backdrop-blur-sm">
+              <div className="flex items-start space-x-4">
+                <div className="text-3xl">🌍</div>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                    Atenda de qualquer lugar
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-2">
+                    Receba chamadas mesmo estando longe de casa. Só precisa de
+                    internet.
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    <ul className="mt-1 ml-2 list-disc space-y-1">
+                      <li>Chamadas de voz em tempo real</li>
+                      <li>Videochamadas com visitantes</li>
+                      <li>Notificações instantâneas</li>
+                    </ul>
+                  </div>
                 </div>
-                <Button onClick={() => (window.location.href = "/cadastro")}>
-                  Cadastrar
-                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-6 bg-white/80 backdrop-blur-sm">
+              <div className="flex items-start space-x-4">
+                <div className="text-3xl">💰</div>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                    Sem custos mensais
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Use sua internet existente. Não cobramos taxas de uso ou
+                    mensalidades.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 bg-white/80 backdrop-blur-sm">
+              <div className="flex items-start space-x-4">
+                <div className="text-3xl">🔒</div>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                    Totalmente seguro
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-2">
+                    Apenas pessoas com o QR code correto conseguem tocar sua
+                    campainha.
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    <strong>Regras de segurança:</strong>
+                    <ul className="mt-1 ml-2 list-disc space-y-1">
+                      <li>QR code único por endereço</li>
+                      <li>Verificação de proximidade por GPS</li>
+                      <li>Bloqueio automático após tentativas</li>
+                      <li>Logs de todas as tentativas de acesso</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </Card>
           </div>
         </div>
+      </div>
 
-        {/* Instruções */}
-        <Card className="p-6 bg-green-50 border-green-200">
-          <h3 className="font-semibold text-lg mb-4 text-green-800">
-            🎯 Como Testar o Sistema Completo:
-          </h3>
-
-          <div className="space-y-4 text-sm">
-            <div>
-              <strong className="text-green-700">1. Login do Morador:</strong>
-              <ul className="mt-1 ml-4 list-disc text-green-700">
-                <li>
-                  Acesse <code>/auth/login</code>
-                </li>
-                <li>
-                  CPF: <code>123.456.789-00</code> (pode digitar com ou sem
-                  máscara)
-                </li>
-                <li>
-                  Senha: <code>123456</code>
-                </li>
-              </ul>
+      {/* Waitlist Form */}
+      <div className="px-4 pb-12">
+        <div className="max-w-md mx-auto">
+          <Card className="p-6 bg-white/90 backdrop-blur-sm">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Seja o primeiro a saber!
+              </h2>
+              <p className="text-gray-600">
+                Cadastre-se na lista de espera e receba acesso antecipado
+              </p>
             </div>
 
-            <div>
-              <strong className="text-green-700">2. Configurar PWA:</strong>
-              <ul className="mt-1 ml-4 list-disc text-green-700">
-                <li>
-                  Após login, acesse <code>/resident</code>
-                </li>
-                <li>Clique "Configurar Notificações"</li>
-                <li>Permita notificações</li>
-                <li>Instale o PWA (se aparecer opção)</li>
-              </ul>
-            </div>
+            {submitStatus === "success" && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-800 text-center font-medium">
+                  ✅ Cadastro realizado com sucesso! Em breve entraremos em
+                  contato.
+                </p>
+              </div>
+            )}
 
-            <div>
-              <strong className="text-green-700">3. Testar Campainha:</strong>
-              <ul className="mt-1 ml-4 list-disc text-green-700">
-                <li>
-                  Abra <code>/teste-campainha</code> em outra aba
-                </li>
-                <li>Clique "TOCAR CAMPAINHA"</li>
-                <li>Veja se o PWA recebe a notificação!</li>
-              </ul>
-            </div>
+            {submitStatus === "error" && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-800 text-center font-medium">
+                  ❌ {errorMessage}
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Input
+                  type="text"
+                  name="name"
+                  placeholder="Seu nome completo"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="h-12 text-base"
+                />
+              </div>
+
+              <div>
+                <Input
+                  type="tel"
+                  name="phone"
+                  placeholder="Seu telefone (WhatsApp)"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  required
+                  className="h-12 text-base"
+                />
+              </div>
+
+              <div>
+                <Input
+                  type="email"
+                  name="email"
+                  placeholder="Seu melhor email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  className="h-12 text-base"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-12 text-base font-semibold"
+              >
+                {isSubmitting ? "Cadastrando..." : "Entrar na lista de espera"}
+              </Button>
+            </form>
+
+            <p className="text-xs text-gray-500 text-center mt-4">
+              Seus dados estão seguros conosco. Não compartilhamos informações
+              pessoais.
+            </p>
+          </Card>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="px-4 pb-8">
+        <div className="max-w-md mx-auto text-center">
+          <p className="text-gray-600 mb-6">
+            Já tem uma conta? Acesse o sistema
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => (window.location.href = "/auth/login")}
+              className="flex-1 h-12"
+            >
+              Login
+            </Button>
+            <Button
+              onClick={() => (window.location.href = "/cadastro")}
+              className="flex-1 h-12"
+            >
+              Cadastrar
+            </Button>
           </div>
-        </Card>
-
-        {/* Funcionalidades */}
-        <Card className="p-6">
-          <h3 className="font-semibold text-lg mb-4">
-            ✨ Funcionalidades Implementadas:
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <strong>🔐 Autenticação:</strong>
-              <ul className="mt-1 ml-4 list-disc text-gray-600">
-                <li>Login com CPF e senha</li>
-                <li>JWT tokens seguros</li>
-                <li>Proteção de rotas</li>
-              </ul>
-            </div>
-
-            <div>
-              <strong>📱 PWA:</strong>
-              <ul className="mt-1 ml-4 list-disc text-gray-600">
-                <li>Instalável na tela inicial</li>
-                <li>Funciona offline</li>
-                <li>Push notifications</li>
-              </ul>
-            </div>
-
-            <div>
-              <strong>🔔 Notificações:</strong>
-              <ul className="mt-1 ml-4 list-disc text-gray-600">
-                <li>Funciona com app fechado</li>
-                <li>Som automático</li>
-                <li>Vibração</li>
-              </ul>
-            </div>
-
-            <div>
-              <strong>🏠 Segurança:</strong>
-              <ul className="mt-1 ml-4 list-disc text-gray-600">
-                <li>Apenas seu endereço</li>
-                <li>Subscriptions protegidas</li>
-                <li>Tokens com expiração</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
+        </div>
       </div>
     </div>
   );

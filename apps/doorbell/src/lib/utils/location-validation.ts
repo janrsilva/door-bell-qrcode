@@ -4,6 +4,10 @@
 
 export const MAX_DISTANCE = 50;
 
+export function getMaxDistance(distance: number): boolean {
+  return distance <= MAX_DISTANCE;
+}
+
 export interface Coordinates {
   lat: number;
   lon: number;

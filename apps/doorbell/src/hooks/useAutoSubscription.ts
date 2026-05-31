@@ -35,7 +35,8 @@ export function useAutoSubscription() {
           !("serviceWorker" in navigator) ||
           !("PushManager" in window)
         ) {
-          throw new Error("Navegador não suporta push notifications");
+          // throw new Error("Navegador não suporta push notifications");
+          return;
         }
 
         // Verificar se já tem subscription existente

@@ -6,11 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import ApiService from "@/lib/api";
 import { useAutoSubscription } from "@/hooks/useAutoSubscription";
-import { playSound, unlockAudio, getSoundConfig } from "@/lib/sound";
+import {
+  playSound,
+  unlockAudio,
+  getSoundConfig,
+  isAudioUnlocked,
+  stopSound,
+} from "@/lib/sound";
 import PWADebug from "@/components/pwa-debug";
 // import { webRTCService } from "@/lib/services/webrtc-service"; // REMOVIDO
 import VoiceCallFirebase from "@/components/voice-call-firebase";
 import AvailableCalls from "@/components/available-calls";
+import { onValue, ref } from "firebase/database";
+import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +49,36 @@ interface CallPageContentProps {
   };
 }
 
+type BrowserPermissionState =
+  | PermissionState
+  | NotificationPermission
+  | "unsupported"
+  | "unavailable";
+
+type PermissionStatusMap = {
+  location: BrowserPermissionState;
+  camera: BrowserPermissionState;
+  microphone: BrowserPermissionState;
+  notifications: BrowserPermissionState;
+};
+
+type PermissionRow = {
+  icon: string;
+  title: string;
+  state: BrowserPermissionState | "ready" | "blocked";
+  description: string;
+  action: React.ReactNode;
+};
+
+const DEFAULT_PERMISSION_STATUS: PermissionStatusMap = {
+  location: "unavailable",
+  camera: "unavailable",
+  microphone: "unavailable",
+  notifications: "unavailable",
+};
+
+const LATEST_RING_VISIBLE_MS = 60 * 1000;
+
 export function CallPageContent({ user }: CallPageContentProps) {
   const { data: session } = useSession();
   const [isOnline, setIsOnline] = useState(true);
@@ -59,6 +97,16 @@ export function CallPageContent({ user }: CallPageContentProps) {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [installPromptDismissed, setInstallPromptDismissed] = useState(false);
+  const [latestRing, setLatestRing] = useState<{
+    visitUuid: string;
+    createdAt: string;
+  } | null>(null);
+  const [isSoundReady, setIsSoundReady] = useState(false);
+  const [soundWarning, setSoundWarning] = useState<string | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatusMap>(
+    DEFAULT_PERMISSION_STATUS,
+  );
+  const latestRingRef = useRef<string | null>(null);
 
   // Voice call states
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
@@ -66,6 +114,40 @@ export function CallPageContent({ user }: CallPageContentProps) {
     offer: RTCSessionDescriptionInit;
   } | null>(null);
   const [showVoiceCallDialog, setShowVoiceCallDialog] = useState(false);
+
+  const readBrowserPermission = async (
+    name: PermissionName,
+  ): Promise<BrowserPermissionState> => {
+    if (!("permissions" in navigator)) return "unsupported";
+
+    try {
+      const status = await navigator.permissions.query({ name });
+      return status.state;
+    } catch {
+      return "unsupported";
+    }
+  };
+
+  const refreshPermissionStatus = async () => {
+    const [location, camera, microphone] = await Promise.all([
+      readBrowserPermission("geolocation"),
+      readBrowserPermission("camera" as PermissionName),
+      readBrowserPermission("microphone" as PermissionName),
+    ]);
+
+    const notifications =
+      "Notification" in window
+        ? (Notification.permission as BrowserPermissionState)
+        : "unsupported";
+
+    setPermissionStatus({
+      location,
+      camera,
+      microphone,
+      notifications,
+    });
+    setIsSoundReady(isAudioUnlocked());
+  };
 
   useEffect(() => {
     // Verificar se está rodando como PWA
@@ -79,6 +161,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
     };
 
     checkPWA();
+    refreshPermissionStatus();
 
     // Verificar se já foi dispensado anteriormente (expira em 7 dias)
     const dismissed = localStorage.getItem("pwa-install-dismissed");
@@ -126,6 +209,8 @@ export function CallPageContent({ user }: CallPageContentProps) {
     window.addEventListener("appinstalled", handleAppInstalled);
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener("focus", refreshPermissionStatus);
+    document.addEventListener("visibilitychange", refreshPermissionStatus);
 
     // Listen for WebRTC signals from service worker
     const handleServiceWorkerMessage = async (event: MessageEvent) => {
@@ -210,6 +295,8 @@ export function CallPageContent({ user }: CallPageContentProps) {
       window.removeEventListener("appinstalled", handleAppInstalled);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("focus", refreshPermissionStatus);
+      document.removeEventListener("visibilitychange", refreshPermissionStatus);
 
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.removeEventListener(
@@ -219,6 +306,63 @@ export function CallPageContent({ user }: CallPageContentProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!user.address.addressUuid) return;
+
+    const db = getFirebaseRealtimeDatabase();
+    const latestRingDbRef = ref(
+      db,
+      `addresses/${user.address.addressUuid}/latestRing`,
+    );
+
+    const unsubscribe = onValue(latestRingDbRef, async (snapshot) => {
+      const ring = snapshot.val() as {
+        visitUuid?: string;
+        createdAt?: string;
+      } | null;
+
+      if (!ring?.visitUuid || !ring.createdAt) return;
+
+      const ringKey = `${ring.visitUuid}:${ring.createdAt}`;
+      const isInitialValue = latestRingRef.current === null;
+      const ringCreatedAtMs = Date.parse(ring.createdAt);
+      const isRecentRing =
+        Number.isFinite(ringCreatedAtMs) &&
+        Date.now() - ringCreatedAtMs <= LATEST_RING_VISIBLE_MS;
+
+      latestRingRef.current = ringKey;
+
+      if (isInitialValue && !isRecentRing) {
+        setLatestRing(null);
+        return;
+      }
+
+      setLatestRing({
+        visitUuid: ring.visitUuid,
+        createdAt: ring.createdAt,
+      });
+
+      if (!isInitialValue) {
+        try {
+          const didPlay = await playSound("doorbell.mp3");
+          setIsSoundReady(isAudioUnlocked());
+          if (!didPlay) {
+            setSoundWarning(
+              "Som bloqueado pelo navegador. Toque em Ativar som.",
+            );
+          } else {
+            setSoundWarning(null);
+          }
+        } catch (error) {
+          console.error("❌ Erro ao tocar alerta em tempo real:", error);
+          setSoundWarning("Som bloqueado pelo navegador. Toque em Ativar som.");
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user.address.addressUuid]);
 
   const installApp = async () => {
     if (deferredPromptRef.current) {
@@ -295,21 +439,113 @@ export function CallPageContent({ user }: CallPageContentProps) {
     }
   };
 
-  const playRingSound = async () => {
+  const enableResidentSound = async () => {
     try {
-      // Primeiro desbloquear áudio se necessário
       const cfg = getSoundConfig();
-      unlockAudio(cfg.file);
+      const unlocked = await unlockAudio(cfg.file);
+      setIsSoundReady(unlocked);
+      await refreshPermissionStatus();
 
-      // Aguardar um pouco para o desbloqueio
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (!unlocked) {
+        setSoundWarning("Som bloqueado pelo navegador. Tente tocar novamente.");
+        return;
+      }
 
-      // Tocar som usando a nova lib
-      await playSound("doorbell.mp3");
+      const didPlay = await playSound("doorbell.mp3");
+      setSoundWarning(didPlay ? null : "Não foi possível tocar o som.");
     } catch (error) {
       console.error("❌ Erro ao testar som da campainha:", error);
+      setSoundWarning("Não foi possível tocar o som.");
     }
   };
+
+  const playRingSound = enableResidentSound;
+
+  const ignoreCurrentRing = () => {
+    stopSound();
+    setLatestRing(null);
+    setSoundWarning(null);
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) return;
+
+    await Notification.requestPermission();
+    await refreshPermissionStatus();
+  };
+
+  const getPermissionBadgeClass = (
+    state: BrowserPermissionState | "ready" | "blocked",
+  ) => {
+    if (state === "granted" || state === "ready") {
+      return "border-green-200 bg-green-50 text-green-800";
+    }
+
+    if (state === "denied" || state === "blocked") {
+      return "border-red-200 bg-red-50 text-red-800";
+    }
+
+    return "border-yellow-200 bg-yellow-50 text-yellow-800";
+  };
+
+  const getPermissionLabel = (
+    state: BrowserPermissionState | "ready" | "blocked",
+  ) => {
+    if (state === "granted" || state === "ready") return "Liberado";
+    if (state === "denied" || state === "blocked") return "Bloqueado";
+    if (state === "prompt" || state === "default") return "Pendente";
+    if (state === "unsupported") return "Não suportado";
+    return "Indisponível";
+  };
+
+  const permissionRows: PermissionRow[] = [
+    {
+      icon: "🔊",
+      title: "Som",
+      state: isSoundReady ? "ready" : ("blocked" as const),
+      description:
+        soundWarning || "Necessário para tocar a campainha com a aba aberta.",
+      action: !isSoundReady ? (
+        <Button onClick={enableResidentSound} size="sm">
+          Ativar som
+        </Button>
+      ) : null,
+    },
+    {
+      icon: "🔔",
+      title: "Notificações",
+      state: permissionStatus.notifications,
+      description: "Necessárias para avisar quando o app estiver em segundo plano.",
+      action:
+        permissionStatus.notifications !== "granted" &&
+        permissionStatus.notifications !== "unsupported" ? (
+          <Button onClick={requestNotificationPermission} size="sm">
+            Ativar
+          </Button>
+        ) : null,
+    },
+    {
+      icon: "📍",
+      title: "Localização",
+      state: permissionStatus.location,
+      description: "Usada para validar a proximidade do visitante.",
+      action: null,
+    },
+    {
+      icon: "🎙️",
+      title: "Microfone",
+      state: permissionStatus.microphone,
+      description: "Usado na chamada de voz.",
+      action: null,
+    },
+    {
+      icon: "📷",
+      title: "Câmera",
+      state: permissionStatus.camera,
+      description: "Usada quando a chamada com vídeo é iniciada.",
+      action: null,
+    },
+  ];
 
   const testUserProfile = async () => {
     try {
@@ -451,8 +687,8 @@ export function CallPageContent({ user }: CallPageContentProps) {
                   {/* Instruções específicas para iOS */}
                   {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
                     <p className="text-xs text-blue-200 mt-1">
-                      📱 iOS: Toque no botão "Compartilhar" e depois "Adicionar
-                      à Tela de Início"
+                      📱 iOS: Toque no botão &quot;Compartilhar&quot; e depois
+                      &quot;Adicionar à Tela de Início&quot;
                     </p>
                   )}
                 </div>
@@ -516,6 +752,39 @@ export function CallPageContent({ user }: CallPageContentProps) {
           </p>
         </div>
 
+        <Card className="mb-6 p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Permissões</h2>
+              <p className="text-sm text-gray-600">
+                Status do navegador para campainha, chamada e notificações.
+              </p>
+            </div>
+            <Button onClick={refreshPermissionStatus} variant="outline" size="sm">
+              Atualizar
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {permissionRows.map((item) => (
+              <div
+                key={item.title}
+                className={`rounded-lg border p-3 ${getPermissionBadgeClass(item.state)}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">
+                      {item.icon} {item.title}: {getPermissionLabel(item.state)}
+                    </p>
+                    <p className="mt-1 text-xs">{item.description}</p>
+                  </div>
+                  {item.action}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         {/* User Info Card */}
         <Card className="mb-6 p-6">
           <div className="flex justify-between items-start mb-4">
@@ -557,7 +826,15 @@ export function CallPageContent({ user }: CallPageContentProps) {
               <p>CEP: {user.address.zipCode}</p>
             </div>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              onClick={() =>
+                window.open(`/v/${user.address.addressUuid}`, "_blank")
+              }
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              🔔 Abrir minha campainha
+            </Button>
             <Button
               onClick={handleLogout}
               variant="outline"
@@ -567,6 +844,34 @@ export function CallPageContent({ user }: CallPageContentProps) {
             </Button>
           </div>
         </Card>
+
+        {latestRing && (
+          <Card className="mb-6 border-yellow-300 bg-yellow-50 p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="text-3xl">🔔</div>
+                <div>
+                  <h2 className="text-xl font-semibold text-yellow-900">
+                    Campainha tocada
+                  </h2>
+                  <p className="text-sm text-yellow-800">
+                    Um visitante tocou a campainha agora.
+                  </p>
+                  <p className="mt-1 text-xs text-yellow-700">
+                    {new Date(latestRing.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={ignoreCurrentRing}
+                variant="outline"
+                className="border-yellow-400 bg-white text-yellow-900 hover:bg-yellow-100"
+              >
+                🔕 Ignorar
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Available Calls */}
         <AvailableCalls

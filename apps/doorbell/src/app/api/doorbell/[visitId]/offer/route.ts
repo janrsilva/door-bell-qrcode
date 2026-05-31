@@ -7,6 +7,7 @@ import {
   validateVisitorLocation,
   Coordinates,
 } from "@/lib/utils/location-validation";
+import { isVisitExpired, VISIT_EXPIRY_TIME } from "@/lib/constants";
 
 export async function POST(
   req: NextRequest,
@@ -47,6 +48,17 @@ export async function POST(
 
     if (!visit || !visit.address) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
+    }
+
+    // Validar se a visita não expirou (15 minutos)
+    if (isVisitExpired(visit.createdAt)) {
+      return NextResponse.json(
+        {
+          error: "Visita expirada",
+          details: `O tempo limite de ${VISIT_EXPIRY_TIME} minutos para iniciar chamadas de voz foi excedido`,
+        },
+        { status: 400 },
+      );
     }
 
     // Validar localização do visitante

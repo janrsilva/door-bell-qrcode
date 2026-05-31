@@ -1,21 +1,22 @@
 import { AddressData } from "@/contexts/AddressContext";
 
+const MAX_LEN = 25;
+
 /**
  * Abrevia apenas o necessário, de trás pra frente, até caber em maxLen.
  * Regras:
- * - Normaliza tipos (Avenida→Av., Rua→R., etc.)
+ * - SEMPRE normaliza tipos (Avenida→Av., Rua→R., Rodovia→Rod.) independente do tamanho
  * - Mantém a última palavra completa (ex.: "Morato")
  * - Vai abreviando da penúltima para a primeira
  * - Palavrinhas de ligação (de, da, do, das, dos, e) não são abreviadas
  * - Se já tiver ponto (ex: "R.", "Av."), mantém
  * - Fallback final com reticências preservando a última palavra
  */
-function abbreviateStreet(name: string, maxLen = 25): string {
+function abbreviateStreet(name: string, maxLen = MAX_LEN): string {
   if (!name) return "";
   const clean = name.replace(/\s+/g, " ").trim();
-  if (clean.length <= maxLen) return clean;
 
-  // dicionário de normalização
+  // dicionário de normalização - SEMPRE aplicado
   const dict: Record<string, string> = {
     avenida: "Av.",
     av: "Av.",
@@ -48,9 +49,11 @@ function abbreviateStreet(name: string, maxLen = 25): string {
 
   const abbrev = (w: string) => w[0].toUpperCase() + ".";
 
-  // 1) normaliza primeiro
+  // 1) SEMPRE normaliza primeiro (independente do tamanho)
   const words = clean.split(" ").map(normalize);
   let result = words.join(" ");
+
+  // Se já está dentro do limite após normalização, retorna
   if (result.length <= maxLen) return result;
 
   // 2) encurta de trás pra frente, preservando a última palavra
@@ -87,11 +90,13 @@ export default function AddressBlock({
       <div className="min-w-0 flex-1 pr-3 border-r border-gray-200">
         <div className="flex flex-col items-start justify-start gap-1">
           <span className="text-2xl leading-tight break-words">
-            {abbreviateStreet(addressData.street)}
+            {abbreviateStreet(addressData.street, MAX_LEN)}
           </span>
           <span className="text-base leading-tight text-gray-300 break-words">
-            {addressData.neighborhood} | {addressData.city} /{" "}
-            {addressData.state}
+            {addressData.neighborhood} | {addressData.city}
+          </span>
+          <span className="text-base leading-tight text-gray-300 break-words">
+            {addressData.zipCode} | {addressData.state}
           </span>
         </div>
       </div>

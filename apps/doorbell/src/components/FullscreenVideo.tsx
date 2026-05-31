@@ -16,6 +16,7 @@ interface FullscreenVideoProps {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   localVideoEnabled: boolean;
+  remoteVideoEnabled: boolean;
   isMuted: boolean;
   role: "visitor" | "resident";
   callState: string;
@@ -28,6 +29,7 @@ export function FullscreenVideo({
   localStream,
   remoteStream,
   localVideoEnabled,
+  remoteVideoEnabled,
   isMuted,
   role,
   callState,
@@ -106,10 +108,12 @@ export function FullscreenVideo({
     children,
     onClick,
     className,
+    ariaLabel,
   }: {
     children: React.ReactNode;
     onClick: () => void;
     className?: string;
+    ariaLabel: string;
   }) => {
     return (
       <button
@@ -118,6 +122,7 @@ export function FullscreenVideo({
           className,
         )}
         onClick={onClick}
+        aria-label={ariaLabel}
       >
         {children}
       </button>
@@ -127,8 +132,8 @@ export function FullscreenVideo({
   return (
     <div className="fixed inset-0 w-full h-full bg-black overflow-hidden z-50">
       {addressData && (
-        <div className="absolute top-1 left-1 right-1 z-30">
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg p-4 text-white">
+        <div className="absolute top-2 left-2 right-2 z-30">
+          <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white">
             <h1>
               <AddressBlock addressData={addressData as AddressData} />
             </h1>
@@ -138,36 +143,69 @@ export function FullscreenVideo({
 
       {/* Vídeo em tela cheia - sempre mostrar o que existe */}
       {showRemoteVideo && (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ backgroundColor: "black" }}
-        />
+        <div className="absolute inset-0 w-full h-full">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ backgroundColor: "black" }}
+          />
+          {/* Overlay para vídeo remoto desligado */}
+          {!remoteVideoEnabled && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pointer-events-none">
+              <div className="text-center text-white">
+                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg font-medium">Vídeo Desligado</p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {showLocalVideo && (
-        <video
-          ref={localVideoRef}
-          autoPlay
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ backgroundColor: "black" }}
-        />
+        <div className="absolute inset-0 w-full h-full">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+            style={{ backgroundColor: "black" }}
+          />
+          {/* Overlay para vídeo local desligado */}
+          {!localVideoEnabled && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-500/80 z-10 pointer-events-none">
+              <div className="text-center text-white">
+                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg font-medium">Vídeo Desligado</p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Fallback: mostrar vídeo local se conectado mas sem vídeo remoto */}
       {showFallbackLocal && (
-        <video
-          ref={localVideoRef}
-          autoPlay
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ backgroundColor: "black" }}
-        />
+        <div className="absolute inset-0 w-full h-full">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+            style={{ backgroundColor: "black" }}
+          />
+          {/* Overlay para vídeo local desligado no fallback */}
+          {!localVideoEnabled && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-500/80 z-10 pointer-events-none">
+              <div className="text-center text-white">
+                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg font-medium">Vídeo Desligado</p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Vídeo menor no canto esquerdo inferior - ratio 9:16 para mobile */}
@@ -179,7 +217,7 @@ export function FullscreenVideo({
             autoPlay
             muted
             playsInline
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover scale-x-[-1]"
           />
         )}
 
@@ -219,32 +257,46 @@ export function FullscreenVideo({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 z-50">
           {/* Controles de áudio e vídeo */}
           <div className="flex items-center gap-2">
             {onToggleMute && (
               <CircleButton
-                className="bg-black/50 hover:bg-black/70 transition-colors"
+                className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
                 onClick={onToggleMute}
+                ariaLabel={isMuted ? "Ativar microfone" : "Desativar microfone"}
               >
-                {isMuted ? <LucideMicOff /> : <LucideMic />}
+                {isMuted ? (
+                  <LucideMicOff className="text-white" />
+                ) : (
+                  <LucideMic className="text-white" />
+                )}
               </CircleButton>
             )}
 
             {onToggleVideo && (
               <CircleButton
-                className="bg-black/50 hover:bg-black/70 transition-colors"
+                className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
                 onClick={onToggleVideo}
+                ariaLabel={localVideoEnabled ? "Desativar vídeo" : "Ativar vídeo"}
               >
-                {localVideoEnabled ? <LucideVideo /> : <LucideVideoOff />}
+                {localVideoEnabled ? (
+                  <LucideVideo className="text-white" />
+                ) : (
+                  <LucideVideoOff className="text-white" />
+                )}
               </CircleButton>
             )}
 
             {/* Botão de encerrar/cancelar - muda baseado no estado */}
             {onEndCall && (
-              <CircleButton onClick={onEndCall}>
+              <CircleButton
+                className="bg-red-600 hover:bg-red-700 border border-red-400/50 shadow-lg"
+                onClick={onEndCall}
+                ariaLabel="Encerrar chamada"
+              >
                 <LucideX
-                  className="p-2 w-10 h-10"
+                  className="p-2 w-10 h-10 text-white"
                   aria-label="Encerrar chamada"
                 />
               </CircleButton>
@@ -256,9 +308,9 @@ export function FullscreenVideo({
       {/* Indicador de conexão */}
       {callState !== "connected" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none z-5">
-          <div className="text-center text-white">
+          <div className="absolute text-center text-white top-[30%] left-[50%] -translate-x-1/2 -translate-y-1/2">
             <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-2" />
-            <p className="text-sm">
+            <p className="text-medium">
               {role === "visitor" ? "Chamando..." : "Aguardando atendimento..."}
             </p>
           </div>

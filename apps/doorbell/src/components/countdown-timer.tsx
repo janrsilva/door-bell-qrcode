@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  DOORBELL_VISIT_EXPIRY_TIME_MS,
-  DOORBELL_VISIT_EXPIRY_TIME_MINUTES,
-} from "@/lib/constants";
+import { VISIT_EXPIRY_TIME_MS, VISIT_EXPIRY_TIME } from "@/lib/constants";
 
 type Props = {
   createdAt: string; // ISO string date from visit.createdAt
@@ -18,7 +15,7 @@ export default function CountdownTimer({ createdAt, onExpiryChange }: Props) {
     // Use createdAt from visit to calculate expiry
     const now = new Date().getTime();
     const visitCreatedAt = new Date(createdAt).getTime();
-    const expiryTime = visitCreatedAt + DOORBELL_VISIT_EXPIRY_TIME_MS;
+    const expiryTime = visitCreatedAt + VISIT_EXPIRY_TIME_MS;
     return expiryTime - now;
   }
 
@@ -82,8 +79,8 @@ export default function CountdownTimer({ createdAt, onExpiryChange }: Props) {
         </div>
       </div>
       <p className="text-blue-700 text-xs mt-1">
-        Esta página expira em {DOORBELL_VISIT_EXPIRY_TIME_MINUTES} minutos após
-        o primeiro acesso.
+        Esta página expira em {VISIT_EXPIRY_TIME} minutos após o primeiro
+        acesso.
       </p>
     </div>
   );

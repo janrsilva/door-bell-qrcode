@@ -15,7 +15,7 @@
 2. Página SSR mostra:
    - Título “Campainha Eletrônica”.
    - Explicação curta.
-   - Botão central “TOCAR CAMPANHA AGORA”.
+   - Botão central “TOCAR CAMPANHA.
 3. Ao clicar no botão:
    - Envia `POST /api/ring` com `visitId` + geolocalização (opcional).
    - Backend registra tentativa e dispara notificação ao morador (MVP: log).

@@ -1,5 +1,6 @@
 import { RegistrationFormData } from "@/lib/schemas";
-import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import { VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 
 export interface CreateVisitResult {
   success: boolean;
@@ -18,20 +19,10 @@ export interface GetVisitResult {
 
 export class SimpleDoorbellService {
   /**
-   * Get Prisma client instance
-   */
-  private static async getPrisma() {
-    const { PrismaClient } = await import("@prisma/client");
-    return new PrismaClient();
-  }
-
-  /**
    * Create a new doorbell visit
    */
   static async createVisit(addressUuid: string): Promise<CreateVisitResult> {
     try {
-      const prisma = await this.getPrisma();
-
       // Find address by UUID
       const address = await prisma.address.findUnique({
         where: { addressUuid },
@@ -68,8 +59,6 @@ export class SimpleDoorbellService {
    */
   static async getVisit(uuid: string): Promise<GetVisitResult> {
     try {
-      const prisma = await this.getPrisma();
-
       // Find the visit
       const visit = await prisma.doorbellVisit.findUnique({
         where: { uuid },
@@ -88,7 +77,7 @@ export class SimpleDoorbellService {
       // Calculate expiry information
       const now = new Date();
       const expiredAt = new Date(
-        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS,
+        visit.createdAt.getTime() + VISIT_EXPIRY_TIME_MS,
       );
       const isExpired = now > expiredAt;
 
@@ -123,7 +112,6 @@ export class SimpleDoorbellService {
     uuid: string,
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const prisma = await this.getPrisma();
       const visit = await prisma.doorbellVisit.findUnique({
         where: { uuid },
       });
@@ -138,7 +126,7 @@ export class SimpleDoorbellService {
       // Check if visit has expired
       const now = new Date();
       const expiredAt = new Date(
-        visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS,
+        visit.createdAt.getTime() + VISIT_EXPIRY_TIME_MS,
       );
 
       if (now > expiredAt) {

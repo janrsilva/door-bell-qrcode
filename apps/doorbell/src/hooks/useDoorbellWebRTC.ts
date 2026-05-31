@@ -49,7 +49,7 @@ export interface DoorbellWebRTCControls {
   ensureLocalStream(options: EnsureLocalStreamOptions): Promise<MediaStream>;
   enableLocalVideo(): Promise<void>;
   toggleMute(): void;
-  toggleVideo(): void;
+  toggleVideo(): Promise<void>;
   createOffer(options?: CreateOfferOptions): Promise<RTCSessionDescriptionInit>;
   acceptOffer(
     offer: RTCSessionDescriptionInit,
@@ -136,7 +136,7 @@ export function useDoorbellWebRTC(
 
     pc.onicecandidate = (event) => {
       setLocalDescription(pc.localDescription ?? null);
-      if (event.candidate) {
+      if (event.candidate?.candidate) {
         // ICE candidate será enviado via callback externo se fornecido
         if (onIceCandidateCallback) {
           onIceCandidateCallback(event.candidate);
@@ -304,16 +304,19 @@ export function useDoorbellWebRTC(
     setIsMuted(!track.enabled);
   }, []);
 
-  const toggleVideo = useCallback(() => {
+  const toggleVideo = useCallback(async () => {
     const stream = localStreamRef.current;
     if (!stream) return;
 
     const [track] = stream.getVideoTracks();
-    if (!track) return;
+    if (!track) {
+      await enableLocalVideo();
+      return;
+    }
 
     track.enabled = !track.enabled;
     setLocalVideoEnabled(track.enabled);
-  }, []);
+  }, [enableLocalVideo]);
 
   const createOffer = useCallback(
     async ({
@@ -371,11 +374,6 @@ export function useDoorbellWebRTC(
 
       attachLocalTracks(pc, stream);
 
-      // Log todos os transceivers disponíveis
-      const allTransceivers = pc.getTransceivers();
-
-      allTransceivers.forEach((transceiver, index) => {});
-
       // Configurar transceivers de vídeo após setRemoteDescription
       const videoTransceivers = pc
         .getTransceivers()
@@ -383,8 +381,8 @@ export function useDoorbellWebRTC(
 
       // Se não há transceivers de vídeo, criar um
       if (videoTransceivers.length === 0 && receiveVideo) {
-        const videoTransceiver = pc.addTransceiver("video", {
-          direction: "recvonly",
+        pc.addTransceiver("video", {
+          direction: "sendrecv",
         });
       }
 
@@ -398,13 +396,9 @@ export function useDoorbellWebRTC(
         );
 
       for (const transceiver of allVideoTransceivers) {
-        if (withLocalVideo) {
-          transceiver.direction = "sendrecv";
-          transceiver.sender.setStreams(stream);
-          videoSenderRef.current = transceiver.sender;
-        } else {
-          transceiver.direction = "recvonly";
-        }
+        transceiver.direction = "sendrecv";
+        transceiver.sender.setStreams(stream);
+        videoSenderRef.current = transceiver.sender;
       }
 
       const answer = await pc.createAnswer({

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveSubscriptions } from "@/lib/services/subscription-service";
-import { PrismaClient } from "@prisma/client";
-import { DOORBELL_VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
+import { prisma } from "@/lib/db";
+import { getDatabase } from "firebase-admin/database";
+import { getFirebaseAdminApp } from "@/lib/firebase-admin";
+import { VISIT_EXPIRY_TIME_MS } from "@/lib/constants";
 import {
   checkLocationProximity,
   isValidCoordinates,
@@ -32,6 +34,7 @@ webpush.setVapidDetails(
 export async function POST(req: NextRequest) {
   // Definir variáveis no escopo principal
   let targetAddressId: number | null = null;
+  let targetAddressUuid: string | null = null;
   let subscriptions: any[] = [];
 
   try {
@@ -49,37 +52,35 @@ export async function POST(req: NextRequest) {
 
     if (!isTestRing) {
       // Validar visita real usando Prisma diretamente na API
-      const prisma = new PrismaClient();
+      const visit = await prisma.doorbellVisit.findUnique({
+        where: { uuid: visitUuid },
+        include: { address: true },
+      });
 
-      try {
-        const visit = await prisma.doorbellVisit.findUnique({
-          where: { uuid: visitUuid },
-        });
-
-        if (!visit) {
-          return NextResponse.json(
-            { error: "Visita não encontrada" },
-            { status: 404 },
-          );
-        }
-
-        // Verificar se a visita expirou
-        const now = new Date();
-        const expiredAt = new Date(
-          visit.createdAt.getTime() + DOORBELL_VISIT_EXPIRY_TIME_MS,
+      if (!visit || !visit.address) {
+        return NextResponse.json(
+          { error: "Visita não encontrada" },
+          { status: 404 },
         );
+      }
 
-        if (now > expiredAt) {
-          return NextResponse.json(
-            {
-              error:
-                "Esta visita expirou. Por favor, escaneie o QR Code novamente.",
-            },
-            { status: 400 },
-          );
-        }
-      } finally {
-        await prisma.$disconnect();
+      targetAddressId = visit.addressId;
+      targetAddressUuid = visit.address.addressUuid;
+
+      // Verificar se a visita expirou
+      const now = new Date();
+      const expiredAt = new Date(
+        visit.createdAt.getTime() + VISIT_EXPIRY_TIME_MS,
+      );
+
+      if (now > expiredAt) {
+        return NextResponse.json(
+          {
+            error:
+              "Esta visita expirou. Por favor, escaneie o QR Code novamente.",
+          },
+          { status: 400 },
+        );
       }
     } else {
     }
@@ -88,43 +89,37 @@ export async function POST(req: NextRequest) {
 
     if (coords && coords.lat && coords.lon && isValidCoordinates(coords)) {
       // Buscar coordenadas do endereço
-      const prisma = new PrismaClient();
+      const visit = await prisma.doorbellVisit.findUnique({
+        where: { uuid: visitUuid },
+        include: { address: true },
+      });
 
-      try {
-        const visit = await prisma.doorbellVisit.findUnique({
-          where: { uuid: visitUuid },
-          include: { address: true },
-        });
+      if (visit?.address.latitude && visit?.address.longitude) {
+        const addressCoords: Coordinates = {
+          lat: visit.address.latitude,
+          lon: visit.address.longitude,
+        };
 
-        if (visit?.address.latitude && visit?.address.longitude) {
-          const addressCoords: Coordinates = {
-            lat: visit.address.latitude,
-            lon: visit.address.longitude,
-          };
+        const visitorCoords: Coordinates = {
+          lat: coords.lat,
+          lon: coords.lon,
+        };
 
-          const visitorCoords: Coordinates = {
-            lat: coords.lat,
-            lon: coords.lon,
-          };
+        const locationResult = checkLocationProximity(
+          addressCoords,
+          visitorCoords,
+        );
 
-          const locationResult = checkLocationProximity(
-            addressCoords,
-            visitorCoords,
+        if (!locationResult.isWithinRange) {
+          return NextResponse.json(
+            {
+              error: `Muito longe! Você está a ${locationResult.distance}m do endereço. Máximo permitido: ${locationResult.maxDistance}m`,
+              distance: locationResult.distance,
+              maxDistance: locationResult.maxDistance,
+            },
+            { status: 400 },
           );
-
-          if (!locationResult.isWithinRange) {
-            return NextResponse.json(
-              {
-                error: `Muito longe! Você está a ${locationResult.distance}m do endereço. Máximo permitido: ${locationResult.maxDistance}m`,
-                distance: locationResult.distance,
-                maxDistance: locationResult.maxDistance,
-              },
-              { status: 400 },
-            );
-          }
         }
-      } finally {
-        await prisma.$disconnect();
       }
     }
 
@@ -132,26 +127,45 @@ export async function POST(req: NextRequest) {
     try {
       // Buscar o endereço da visita para filtrar subscriptions
 
-      if (!isTestRing) {
-        // Para visitas reais, buscar o addressId da visita
-        const { PrismaClient } = await import("@prisma/client");
-        const prisma = new PrismaClient();
-
-        try {
-          const visit = await prisma.doorbellVisit.findUnique({
-            where: { uuid: visitUuid },
-            include: { address: true },
-          });
-
-          if (visit) {
-            targetAddressId = visit.addressId;
-          }
-        } finally {
-          await prisma.$disconnect();
-        }
-      } else {
+      if (isTestRing) {
         // Para testes, usar addressId 1 por padrão
         targetAddressId = 1;
+      } else if (!targetAddressId || !targetAddressUuid) {
+        // Para visitas reais, buscar o addressId da visita
+        const visit = await prisma.doorbellVisit.findUnique({
+          where: { uuid: visitUuid },
+          include: { address: true },
+        });
+
+        if (visit) {
+          targetAddressId = visit.addressId;
+          targetAddressUuid = visit.address.addressUuid;
+        }
+      }
+
+      if (targetAddressUuid) {
+        try {
+          const now = new Date().toISOString();
+          const app = getFirebaseAdminApp();
+          const db = getDatabase(app);
+          const ringPayload = {
+            visitUuid,
+            createdAt: now,
+            coords: coords ?? null,
+            status: "ringed",
+          };
+          const addressRef = db.ref(`addresses/${targetAddressUuid}`);
+
+          await Promise.all([
+            addressRef.child("latestRing").set(ringPayload),
+            addressRef.child(`rings/${visitUuid}`).set(ringPayload),
+          ]);
+        } catch (ringEventError) {
+          console.error(
+            "❌ Erro ao registrar toque em tempo real:",
+            ringEventError,
+          );
+        }
       }
 
       // Buscar subscriptions ativas para o endereço específico
@@ -188,13 +202,10 @@ export async function POST(req: NextRequest) {
             // Se subscription expirou (410), marcar como inativa
             if (error.statusCode === 410) {
               try {
-                const { PrismaClient } = await import("@prisma/client");
-                const prisma = new PrismaClient();
                 await prisma.pushSubscription.updateMany({
                   where: { endpoint: subscription.endpoint },
                   data: { isActive: false },
                 });
-                await prisma.$disconnect();
               } catch (dbError) {
                 console.error(
                   "❌ Erro ao marcar subscription como inativa:",
@@ -229,6 +240,7 @@ export async function POST(req: NextRequest) {
       debug: {
         visitUuid,
         targetAddressId,
+        targetAddressUuid,
         subscriptionsFound: subscriptions?.length || 0,
       },
     });

@@ -41,13 +41,13 @@ export function getAuthUserFromHeaders(req: NextRequest) {
 // Helper LEGACY: Verifica sessão diretamente (menos eficiente)
 export async function getAuthUserFromRequest(req: NextRequest) {
   try {
-    // 🚀 OTIMIZAÇÃO: Tentar headers primeiro
+    // OTIMIZAÇÃO: Tentar headers primeiro
     const headerUser = getAuthUserFromHeaders(req);
     if (headerUser) {
       return headerUser;
     }
 
-    // 🐌 FALLBACK: Verificar sessão (caso headers não estejam disponíveis)
+    // FALLBACK: Verificar sessão (caso headers não estejam disponíveis)
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {

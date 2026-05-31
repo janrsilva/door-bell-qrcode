@@ -4,6 +4,7 @@ type SoundConfig = {
 };
 
 const KEY = "custom-notification-sound";
+const DOORBELL_VOLUME = 0.8;
 
 export function getSoundConfig(): SoundConfig {
   if (typeof window === "undefined")
@@ -28,10 +29,12 @@ export function setSoundConfig(cfg: SoundConfig) {
  */
 let audioEl: HTMLAudioElement | null = null;
 let isUnlocked = false;
+let repeatTimeouts: ReturnType<typeof setTimeout>[] = [];
+let repeatAudioEls: HTMLAudioElement[] = [];
 
-export function unlockAudio(initialFile?: string) {
-  if (typeof window === "undefined") return;
-  if (isUnlocked) return; // já desbloqueado
+export async function unlockAudio(initialFile?: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (isUnlocked) return true; // já desbloqueado
 
   audioEl = new Audio(
     initialFile ? `/sounds/${initialFile}` : "/sounds/doorbell.mp3",
@@ -40,43 +43,42 @@ export function unlockAudio(initialFile?: string) {
 
   // Tocar e pausar rapidamente para "inicializar" o contexto
   audioEl.volume = 0.0001;
-  audioEl
-    .play()
-    .then(() => {
-      audioEl?.pause();
-      if (audioEl) {
-        audioEl.currentTime = 0;
-        audioEl.volume = 1;
-      }
-      isUnlocked = true;
-    })
-    .catch((err) => {
-      console.warn("⚠️ Falha ao desbloquear áudio:", err);
-      // Se falhar, o usuário precisa interagir novamente
-    });
+  try {
+    await audioEl.play();
+    audioEl.pause();
+    audioEl.currentTime = 0;
+    audioEl.volume = DOORBELL_VOLUME;
+    isUnlocked = true;
+    return true;
+  } catch (err) {
+    console.warn("⚠️ Falha ao desbloquear áudio:", err);
+    // Se falhar, o usuário precisa interagir novamente
+    return false;
+  }
 }
 
-export async function playSound(file?: string) {
-  if (typeof window === "undefined") return;
+export async function playSound(file?: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
 
   const cfg = getSoundConfig();
   if (!cfg.enabled) {
-    return;
+    return false;
   }
 
   // Só tocar se a aba estiver visível (foreground)
   if (document.visibilityState !== "visible") {
-    return;
+    return false;
   }
 
   const chosen = file || cfg.file || "doorbell.mp3";
   const src = `/sounds/${chosen}`;
 
   try {
+    stopSound();
+
     if (!audioEl || !isUnlocked) {
-      unlockAudio(chosen);
-      // Aguardar um pouco para o desbloqueio
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      const unlocked = await unlockAudio(chosen);
+      if (!unlocked) return false;
     }
 
     if (!audioEl) {
@@ -86,28 +88,49 @@ export async function playSound(file?: string) {
     }
 
     audioEl.preload = "auto";
-    audioEl.volume = 1.0;
+    audioEl.volume = DOORBELL_VOLUME;
 
     await audioEl.play();
 
     // Padrão de campainha: 3 toques
     for (let i = 0; i < 2; i++) {
-      setTimeout(
+      const timeout = setTimeout(
         async () => {
           try {
             const repeatAudio = new Audio(src);
-            repeatAudio.volume = 1.0;
+            repeatAudioEls.push(repeatAudio);
+            repeatAudio.volume = DOORBELL_VOLUME;
             await repeatAudio.play();
           } catch (e) {}
         },
         (i + 1) * 1000,
       ); // A cada 1 segundo
+      repeatTimeouts.push(timeout);
     }
+
+    return true;
   } catch (err) {
     console.warn(
       "⚠️ Falha ao tocar áudio customizado (provável bloqueio de autoplay):",
       err,
     );
+    return false;
+  }
+}
+
+export function stopSound() {
+  repeatTimeouts.forEach((timeout) => clearTimeout(timeout));
+  repeatTimeouts = [];
+
+  repeatAudioEls.forEach((audio) => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
+  repeatAudioEls = [];
+
+  if (audioEl) {
+    audioEl.pause();
+    audioEl.currentTime = 0;
   }
 }
 

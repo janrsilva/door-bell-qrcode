@@ -9,7 +9,21 @@ export async function POST(
 ) {
   try {
     const { visitId } = await params;
-    const body = await request.json();
+    let body: {
+      candidate?: string;
+      sdpMLineIndex?: number | null;
+      sdpMid?: string | null;
+      from?: string;
+    };
+
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "JSON body inválido" },
+        { status: 400 },
+      );
+    }
 
     if (!body.candidate) {
       return NextResponse.json(

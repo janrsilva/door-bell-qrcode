@@ -1,15 +1,17 @@
-import { PrismaClient } from "@prisma/client";
+import type { PushSubscription as PushSubscriptionModel } from "@prisma/client";
+import { prisma } from "@/lib/db";
 
-// Singleton do Prisma Client para evitar múltiplas conexões
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+export interface WebPushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
 
-const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
-
-export async function getActiveSubscriptions(addressId?: number) {
+export async function getActiveSubscriptions(
+  addressId?: number,
+): Promise<WebPushSubscription[]> {
   try {
     const where = {
       isActive: true,
@@ -23,16 +25,13 @@ export async function getActiveSubscriptions(addressId?: number) {
     });
 
     // Converter para formato esperado pelas APIs existentes
-    const result = dbSubscriptions.map((sub) => ({
+    const result = dbSubscriptions.map((sub: PushSubscriptionModel) => ({
       endpoint: sub.endpoint,
       keys: {
         p256dh: sub.p256dhKey,
         auth: sub.authKey,
       },
     }));
-
-    for (const [index, sub] of dbSubscriptions.entries()) {
-    }
 
     return result;
   } catch (error) {
