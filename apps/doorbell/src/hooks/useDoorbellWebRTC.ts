@@ -132,6 +132,11 @@ export function useDoorbellWebRTC(
 
     pc.oniceconnectionstatechange = () => {
       updateConnectionState(pc);
+      if (pc.iceConnectionState === "failed") {
+        setErrorState(
+          "Não foi possível estabelecer a conexão da chamada. Tente novamente.",
+        );
+      }
     };
 
     pc.onicecandidate = (event) => {
@@ -145,8 +150,22 @@ export function useDoorbellWebRTC(
     };
 
     pc.onicecandidateerror = (event) => {
-      console.error("ICE candidate error", event);
-      setErrorState("Erro ao coletar ICE candidates. Tente novamente.");
+      console.warn("ICE candidate warning", {
+        url: event.url,
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+        iceState: pc.iceConnectionState,
+        connectionState: pc.connectionState,
+      });
+
+      if (
+        pc.iceConnectionState === "failed" ||
+        pc.connectionState === "failed"
+      ) {
+        setErrorState(
+          "Não foi possível estabelecer a conexão da chamada. Tente novamente.",
+        );
+      }
     };
 
     pc.onicegatheringstatechange = () => {

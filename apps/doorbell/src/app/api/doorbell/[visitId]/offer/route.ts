@@ -92,8 +92,11 @@ export async function POST(
 
     // Nova estrutura: addresses/{addressUuid}/visits/{visitUuid}
     const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
-    const addressVisitRef = addressRef.child(`visits/${visitId}`);
-    const onCallVisitRef = addressRef.child("onCallVisit");
+    const visitsSnapshot = await addressRef.child("visits").get();
+    const visits = (visitsSnapshot.val() ?? {}) as Record<
+      string,
+      { status?: string }
+    >;
 
     const visitPayload = {
       uuid: visitId,
@@ -113,10 +116,23 @@ export async function POST(
       iceCandidates: null,
     };
 
-    await Promise.all([
-      addressVisitRef.set(payloadWithReset),
-      onCallVisitRef.set(payloadWithReset),
-    ]);
+    const updates: Record<string, unknown> = {
+      [`visits/${visitId}`]: payloadWithReset,
+      onCallVisit: payloadWithReset,
+    };
+
+    Object.entries(visits).forEach(([currentVisitId, currentVisit]) => {
+      if (currentVisitId === visitId || currentVisit?.status === "ended") {
+        return;
+      }
+
+      updates[`visits/${currentVisitId}/status`] = "ended";
+      updates[`visits/${currentVisitId}/updatedAt`] = now;
+      updates[`visits/${currentVisitId}/endedAt`] = now;
+      updates[`visits/${currentVisitId}/iceCandidates`] = null;
+    });
+
+    await addressRef.update(updates);
 
     const { devicesNotified, reason } = await notifyResidentOfferAvailable(
       visitId,

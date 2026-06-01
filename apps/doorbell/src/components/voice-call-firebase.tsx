@@ -77,6 +77,7 @@ export default function VoiceCallFirebase(props: Props) {
   const appliedAnswerRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const activeVisitIdRef = useRef<string | null>(null);
+  const activeOfferRef = useRef<string | null>(null);
 
   const postIceCandidate = useCallback(
     async (visitId: string, candidate: RTCIceCandidate) => {
@@ -160,6 +161,7 @@ export default function VoiceCallFirebase(props: Props) {
       pendingIceCandidatesRef.current = [];
       endedProcessedRef.current = true;
       activeVisitIdRef.current = null;
+      activeOfferRef.current = null;
 
       // Resetar WebRTC e estado da chamada
       reset();
@@ -212,18 +214,23 @@ export default function VoiceCallFirebase(props: Props) {
       const data = (snapshot.val() ?? null) as AddressSnapshot | null;
       const onCallVisit = data?.onCallVisit;
       const onCallVisitId = onCallVisit?.uuid;
+      const onCallOfferId = onCallVisit?.webRtcOffer
+        ? `${onCallVisitId}:${onCallVisit.webRtcOffer.createdAt}`
+        : null;
 
       if (onCallVisitId) {
-        if (activeVisitIdRef.current !== onCallVisitId) {
+        if (activeOfferRef.current !== onCallOfferId) {
+          reset();
           processedCandidatesRef.current.clear();
           appliedAnswerRef.current = null;
           pendingIceCandidatesRef.current = [];
           endedProcessedRef.current = false;
           activeVisitIdRef.current = onCallVisitId;
+          activeOfferRef.current = onCallOfferId;
         }
 
         setVisitData(onCallVisit);
-        if (onCallVisit.status !== "answered" && callState !== "connected") {
+        if (onCallVisit.status !== "answered") {
           setCallState("ringing");
           setStatusMessage("📞 Visitante chamando");
         }
@@ -236,7 +243,7 @@ export default function VoiceCallFirebase(props: Props) {
     });
 
     return () => unsubscribe();
-  }, [role, addressUuid, cleanupCall, callState]);
+  }, [role, addressUuid, cleanupCall, callState, reset]);
 
   useEffect(() => {
     const status = visitData?.status;
@@ -604,6 +611,7 @@ export default function VoiceCallFirebase(props: Props) {
       setError(null);
       setStatusMessage("Preparando chamada...");
       setCallState("calling");
+      reset();
 
       // Limpar estados antes de iniciar
       processedCandidatesRef.current.clear();
@@ -611,6 +619,7 @@ export default function VoiceCallFirebase(props: Props) {
       pendingIceCandidatesRef.current = [];
       endedProcessedRef.current = false;
       activeVisitIdRef.current = startVisitUuid;
+      activeOfferRef.current = null;
 
       await ensureLocalStream({ withVideo: true });
       const offer = await createOffer({
@@ -645,6 +654,7 @@ export default function VoiceCallFirebase(props: Props) {
     visit,
     onRequestLocation,
     setError,
+    reset,
     ensureLocalStream,
     createOffer,
     postOffer,
