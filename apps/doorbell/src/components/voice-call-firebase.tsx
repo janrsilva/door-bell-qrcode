@@ -21,6 +21,9 @@ interface VisitSnapshot {
   webRtcAnswer?: { sdp: string; createdAt: string } | null;
   visitorPreview?: { dataUrl: string; createdAt: string } | null;
   status?: "offer_created" | "answered" | "ended" | string;
+  createdAt?: string;
+  updatedAt?: string;
+  addressUuid?: string;
   iceCandidates?: Record<
     string,
     {
@@ -36,6 +39,57 @@ interface VisitSnapshot {
 interface AddressSnapshot {
   onCallVisit?: VisitSnapshot | null;
   visits?: Record<string, VisitSnapshot>;
+}
+
+function isAnswerableVisit(
+  visit: VisitSnapshot | null | undefined,
+): visit is VisitSnapshot & { uuid: string; webRtcOffer: { sdp: string; createdAt: string } } {
+  return (
+    Boolean(visit?.uuid) &&
+    Boolean(visit?.webRtcOffer?.sdp) &&
+    visit?.status !== "ended"
+  );
+}
+
+function getRequestedVisitId() {
+  if (typeof window === "undefined") return null;
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get("call") || params.get("voiceCall");
+}
+
+function findLatestAnswerableVisit(
+  visits: Record<string, VisitSnapshot> | undefined,
+): VisitSnapshot | null {
+  const answerableVisits = Object.entries(visits ?? {})
+    .map(([visitId, visit]) => ({ ...visit, uuid: visit.uuid || visitId }))
+    .filter(isAnswerableVisit);
+
+  return answerableVisits.sort((a, b) => {
+    const timeA = Date.parse(a.webRtcOffer?.createdAt || a.createdAt || "");
+    const timeB = Date.parse(b.webRtcOffer?.createdAt || b.createdAt || "");
+    return (Number.isFinite(timeB) ? timeB : 0) -
+      (Number.isFinite(timeA) ? timeA : 0);
+  })[0] ?? null;
+}
+
+function resolveResidentVisit(data: AddressSnapshot | null) {
+  if (!data) return null;
+
+  if (isAnswerableVisit(data.onCallVisit)) {
+    return data.onCallVisit;
+  }
+
+  const requestedVisitId = getRequestedVisitId();
+  if (requestedVisitId) {
+    const requestedVisit = data.visits?.[requestedVisitId];
+
+    if (isAnswerableVisit(requestedVisit)) {
+      return { ...requestedVisit, uuid: requestedVisit.uuid || requestedVisitId };
+    }
+  }
+
+  return findLatestAnswerableVisit(data.visits);
 }
 
 async function captureVideoPreview(
@@ -255,7 +309,7 @@ export default function VoiceCallFirebase(props: Props) {
 
     const unsubscribe = onValue(addressRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as AddressSnapshot | null;
-      const onCallVisit = data?.onCallVisit;
+      const onCallVisit = resolveResidentVisit(data);
       const onCallVisitId = onCallVisit?.uuid;
       const onCallOfferId = onCallVisit?.webRtcOffer
         ? `${onCallVisitId}:${onCallVisit.webRtcOffer.createdAt}`

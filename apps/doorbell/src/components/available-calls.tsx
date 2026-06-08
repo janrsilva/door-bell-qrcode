@@ -9,6 +9,7 @@ interface AvailableCall {
   visitId: string;
   createdAt?: string;
   status?: string;
+  source?: "active" | "history";
 }
 
 interface Props {
@@ -29,6 +30,7 @@ export default function AvailableCalls({ addressUuid, onCallAccepted }: Props) {
     const unsubscribe = onValue(addressRef, (snapshot) => {
       const data = snapshot.val() ?? {};
       const visits = data.visits ?? {};
+      const onCallVisit = data.onCallVisit;
 
       const available: AvailableCall[] = Object.entries(visits)
         .filter(([, value]: any) => value?.status === "offer_created")
@@ -36,12 +38,25 @@ export default function AvailableCalls({ addressUuid, onCallAccepted }: Props) {
           visitId,
           createdAt: value?.webRtcOffer?.createdAt,
           status: value?.status,
+          source: "history",
         }));
 
+      if (
+        onCallVisit?.uuid &&
+        onCallVisit?.webRtcOffer?.sdp &&
+        onCallVisit.status !== "ended" &&
+        !available.some((call) => call.visitId === onCallVisit.uuid)
+      ) {
+        available.push({
+          visitId: onCallVisit.uuid,
+          createdAt: onCallVisit.webRtcOffer.createdAt,
+          status: onCallVisit.status,
+          source: "active",
+        });
+      }
+
       setCalls(available);
-      setActiveVisitId(
-        typeof data.onCallVisit === "string" ? data.onCallVisit : null
-      );
+      setActiveVisitId(onCallVisit?.uuid ?? null);
     });
 
     return () => unsubscribe();

@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-v7";
+const CACHE_NAME = "doorbell-call-v8";
 const urlsToCache = [
   "/manifest.json",
   "/sounds/rington.mp3",
@@ -198,7 +198,10 @@ self.addEventListener("notificationclick", (event) => {
         ),
       );
     } else {
-      event.waitUntil(self.clients.openWindow("/resident"));
+      const residentUrl = data.visitId
+        ? `/resident?call=${data.visitId}`
+        : "/resident";
+      event.waitUntil(self.clients.openWindow(residentUrl));
     }
   }
 });
