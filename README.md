@@ -1,90 +1,157 @@
 # QR Code Door Bell
 
-A Turbo monorepo for electronic doorbell applications.
+Monorepo pnpm/Turbo para a campainha eletrônica por QR code.
 
-## Structure
+## Estrutura
 
-```
+```text
 qrcode-door-bell/
 ├─ apps/
-│  └─ doorbell/          # Next.js SSR doorbell application
-├─ turbo.json            # Turbo configuration
-└─ package.json          # Root workspace configuration
+│  └─ doorbell/          # Aplicacao Next.js
+├─ docs/                 # Documentacao de produto/tecnica
+├─ pnpm-workspace.yaml
+├─ turbo.json
+├─ vercel.json           # Configuracao de deploy na Vercel
+└─ package.json
 ```
 
-## Apps
+## Requisitos
 
-### Doorbell (`apps/doorbell`)
-
-A lean, SSR-first Next.js application for electronic doorbell functionality.
-
-- **SSR-first**: Minimal JavaScript payload with server-side rendering
-- **Edge Runtime**: Low latency API endpoints
-- **Single Client Component**: Only the ring button is client-side rendered
-- **Geolocation**: Optional location tracking for security
-- **Modern UI**: Built with Tailwind CSS and shadcn/ui components
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ 
-- npm
-
-### Installation
+- Node.js 22.x
+- pnpm 10.x
+- Vercel CLI, para publicar pelo terminal
 
 ```bash
-# Install dependencies for all apps
-npm install
-
-# Install dependencies for specific app
-cd apps/doorbell && npm install
+corepack enable
+pnpm install
 ```
 
-### Development
+## Ambiente Local
+
+1. Copie o exemplo de variaveis:
 
 ```bash
-# Run all apps in development mode
-npm run dev
-
-# Run specific app
-cd apps/doorbell && npm run dev
+cp apps/doorbell/.env.example apps/doorbell/.env.local
 ```
 
-### Building
+2. Preencha `apps/doorbell/.env.local`.
+
+3. Valide o ambiente:
 
 ```bash
-# Build all apps
-npm run build
-
-# Build specific app
-cd apps/doorbell && npm run build
+pnpm env:check
 ```
 
-### Other Commands
+4. Rode o app:
 
 ```bash
-# Lint all apps
-npm run lint
-
-# Type check all apps
-npm run type-check
-
-# Clean all build artifacts
-npm run clean
+pnpm dev:doorbell
 ```
 
-## Tech Stack
+O app local usa `http://localhost:3333`.
 
-- **Turbo**: Monorepo build system
-- **Next.js 15**: React framework with App Router
-- **TypeScript**: Type safety
-- **Tailwind CSS**: Utility-first CSS framework
-- **shadcn/ui**: Re-usable component library
+## Comandos
 
-## Contributing
+```bash
+pnpm dev:doorbell       # Next dev na porta 3333
+pnpm build:doorbell     # prisma generate + next build
+pnpm lint               # lint via Turbo
+pnpm type-check         # TypeScript via Turbo
+pnpm env:check          # valida variaveis do app
+```
 
-1. Make changes in the appropriate app directory
-2. Run `npm run lint` to check code quality
-3. Run `npm run type-check` to verify TypeScript
-4. Test your changes with `npm run dev`
+## Vercel
+
+Este repositorio ainda nao precisa existir previamente na Vercel. A configuracao local esta preparada para criar/linkar um unico projeto apontando para o app `doorbell`.
+
+### Criar ou Linkar Projeto
+
+```bash
+pnpm vercel:link
+```
+
+Quando a CLI perguntar:
+
+- Framework: `Next.js`
+- Root Directory: `./`
+- Install Command: `pnpm install --frozen-lockfile`
+- Build Command: `pnpm --filter doorbell build`
+- Output Directory: `apps/doorbell/.next`
+
+Esses valores tambem estao em `vercel.json`.
+
+Em deploys por push, o script `build` do app executa `prisma migrate deploy` antes do `next build` quando detecta `VERCEL=1`. Por isso `DATABASE_URL` precisa estar configurada no ambiente do deploy.
+
+### Sincronizar Variaveis
+
+Depois de configurar as variaveis no painel da Vercel:
+
+```bash
+pnpm vercel:pull
+pnpm env:check
+```
+
+### Testar Build Igual a Vercel
+
+```bash
+pnpm vercel:build
+```
+
+Build local de producao, usando `apps/doorbell/.env.local` e o dominio do projeto linkado:
+
+```bash
+pnpm vercel:build:prod
+```
+
+### Publicar
+
+Preview:
+
+```bash
+pnpm vercel:deploy
+```
+
+Producao:
+
+```bash
+pnpm vercel:deploy:prod
+```
+
+Producao usando o build local ja gerado:
+
+```bash
+pnpm vercel:deploy:prebuilt:prod
+```
+
+Depois do primeiro deploy de producao, atualize estas variaveis na Vercel:
+
+```text
+NEXT_PUBLIC_BASE_URL=https://seu-dominio.vercel.app
+NEXTAUTH_URL=https://seu-dominio.vercel.app
+```
+
+## Variaveis Obrigatorias
+
+Veja [apps/doorbell/.env.example](apps/doorbell/.env.example).
+
+Principais grupos:
+
+- Banco Postgres: `DATABASE_URL`
+- Auth: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
+- URL publica: `NEXT_PUBLIC_BASE_URL`
+- Web Push: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+- Firebase client: `NEXT_PUBLIC_FIREBASE_*`
+- Firebase Admin: `FIREBASE_ADMIN_SA_JSON`
+- Google Maps: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+
+Para gerar `NEXTAUTH_SECRET`:
+
+```bash
+openssl rand -base64 32
+```
+
+Para gerar `FIREBASE_ADMIN_SA_JSON` a partir do JSON de service account:
+
+```bash
+base64 -i service-account.json | tr -d '\n'
+```

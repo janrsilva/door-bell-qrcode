@@ -3,10 +3,22 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
+    "build:doorbell": "pnpm --filter doorbell build",
     "dev": "turbo dev",
+    "dev:doorbell": "pnpm --filter doorbell dev",
+    "db:migrate:deploy": "node scripts/prisma-app-env.js migrate deploy",
+    "db:migrate:status": "node scripts/prisma-app-env.js migrate status",
+    "env:check": "pnpm --filter doorbell check-env",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "vercel:build": "vercel build",
+    "vercel:build:prod": "node scripts/vercel-build-prod.js",
+    "vercel:deploy": "vercel deploy",
+    "vercel:deploy:prebuilt:prod": "vercel deploy --prebuilt --prod",
+    "vercel:deploy:prod": "vercel deploy --prod",
+    "vercel:link": "vercel link",
+    "vercel:pull": "vercel env pull apps/doorbell/.env.local"
   },
   "devDependencies": {
     "turbo": "^2.3.4"

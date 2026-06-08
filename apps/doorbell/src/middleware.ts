@@ -7,7 +7,6 @@ const unprotectedApiRoutes = [
   "/api/register", // Cadastro de novos usuários
   "/api/create-visit", // Criar visita (visitantes)
   "/api/qr", // Gerar QR codes (visitantes)
-  "/api/pdf", // Gerar PDFs (visitantes)
   "/api/visit", // Buscar dados de visita (visitantes)
   "/api/ring", // Tocar campainha (visitantes)
   "/api/waitlist", // Lista de espera (pública)

@@ -27,7 +27,6 @@ class ApiService {
     "/api/register",
     "/api/ring",
     "/api/qr",
-    "/api/pdf",
     "/api/create-visit",
     "/api/visit",
     "/api/debug", // APIs de debug são públicas

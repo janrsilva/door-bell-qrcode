@@ -1,8 +1,9 @@
-const CACHE_NAME = "doorbell-call-v4"; // Som da campainha corrigido com abordagem correta
+const CACHE_NAME = "doorbell-call-v7";
 const urlsToCache = [
-  "/resident",
+  "/manifest.json",
   "/sounds/rington.mp3",
   "/sounds/doorbell.mp3", // Som personalizado da campainha
+  "/sounds/calling-ring.mp3",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
 ];
@@ -16,17 +17,38 @@ self.addEventListener("install", (event) => {
       return cache.addAll(urlsToCache);
     }),
   );
-  self.skipWaiting(); // Ativa imediatamente
 });
 
 // Ativação do Service Worker
 self.addEventListener("activate", (event) => {
   console.log("Service Worker ativado");
-  event.waitUntil(self.clients.claim()); // Assume controle imediatamente
+  event.waitUntil(
+    Promise.all([
+      caches
+        .keys()
+        .then((cacheNames) =>
+          Promise.all(
+            cacheNames
+              .filter((cacheName) => cacheName !== CACHE_NAME)
+              .map((cacheName) => caches.delete(cacheName)),
+          ),
+        ),
+      self.clients.claim(),
+    ]),
+  );
 });
 
 // Interceptar requisições para cache
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
+    return;
+  }
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       // Retorna do cache se disponível, senão busca na rede
@@ -123,11 +145,13 @@ self.addEventListener("push", (event) => {
             signal: data.webrtc,
             visitId: data.visitId,
           });
-        } else {
+        } else if (!data.silent && notificationType !== "webrtc_offer_ready") {
           // Para campainha normal
           client.postMessage({
             type: "PLAY_CUSTOM_SOUND",
             sound: suggestedSound,
+            visitId: data.visitId,
+            timestamp: data.timestamp,
             title,
             body,
             tag,
@@ -183,6 +207,10 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "KEEP_ALIVE") {
     event.ports[0].postMessage("SW_ALIVE");
+  }
+
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
   }
 });
 

@@ -19,7 +19,11 @@ export async function POST(
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
   }
 
-  let body: { sdp?: any; coords?: Coordinates };
+  let body: {
+    sdp?: any;
+    coords?: Coordinates;
+    visitorPreviewDataUrl?: string | null;
+  };
   try {
     body = await req.json();
   } catch (error) {
@@ -105,6 +109,7 @@ export async function POST(
         createdAt: now,
       },
       webRtcAnswer: null,
+      visitorPreview: getValidVisitorPreview(body.visitorPreviewDataUrl, now),
       status: "offer_created",
       updatedAt: now,
       addressUuid: visit.address.addressUuid,
@@ -153,4 +158,18 @@ export async function POST(
       { status: 500 },
     );
   }
+}
+
+function getValidVisitorPreview(dataUrl: string | null | undefined, now: string) {
+  if (!dataUrl) return null;
+
+  const isSupportedImage = /^data:image\/(jpeg|png|webp);base64,/.test(dataUrl);
+  if (!isSupportedImage || dataUrl.length > 200_000) {
+    return null;
+  }
+
+  return {
+    dataUrl,
+    createdAt: now,
+  };
 }

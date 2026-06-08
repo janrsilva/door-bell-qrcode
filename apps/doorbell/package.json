@@ -4,11 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "PORT=3333 next dev",
-    "build": "next build",
+    "build": "node vercel-migrate.js && prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "check-env": "node check-env.js",
-    "seed": "node seed.js",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json}\""
@@ -37,7 +36,6 @@
     "next-auth": "^4.24.11",
     "pg": "^8.16.3",
     "prisma": "^6.16.1",
-    "puppeteer": "^24.21.0",
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",

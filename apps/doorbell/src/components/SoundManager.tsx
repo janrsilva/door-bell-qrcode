@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getSoundConfig, playSound, unlockAudio } from "@/lib/sound";
 
+const MAX_PUSH_SOUND_AGE_MS = 60 * 1000;
+
 export function SoundManager() {
+  const lastPlayedEventRef = useRef<string | null>(null);
+
   useEffect(() => {
     // Listener de mensagens do SW
     const onMessage = (event: MessageEvent) => {
@@ -11,6 +15,23 @@ export function SoundManager() {
       if (data.type === "PLAY_CUSTOM_SOUND") {
         // Só tenta tocar se a aba estiver visível (foreground)
         if (document.visibilityState === "visible") {
+          const eventKey = `${data.visitId || data.tag || "unknown"}:${
+            data.timestamp || ""
+          }`;
+          const eventAge =
+            typeof data.timestamp === "number"
+              ? Date.now() - data.timestamp
+              : 0;
+
+          if (
+            eventKey === lastPlayedEventRef.current ||
+            eventAge > MAX_PUSH_SOUND_AGE_MS
+          ) {
+            return;
+          }
+
+          lastPlayedEventRef.current = eventKey;
+
           // Toca o som sugerido ou o configurado
           playSound(data.sound);
         }
@@ -21,10 +42,10 @@ export function SoundManager() {
       navigator.serviceWorker.addEventListener("message", onMessage);
     }
 
-    // Desbloqueio" de áudio: se o usuário interagir, preparamos o player
+    // Desbloqueio de áudio: se o usuário interagir, preparamos o player.
     const onFirstInteraction = () => {
       const cfg = getSoundConfig();
-      unlockAudio(cfg.file);
+      void unlockAudio(cfg.file);
       window.removeEventListener("click", onFirstInteraction);
       window.removeEventListener("keydown", onFirstInteraction);
       window.removeEventListener("touchstart", onFirstInteraction);

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import ApiService from "@/lib/api";
 import { useAutoSubscription } from "@/hooks/useAutoSubscription";
 import {
   playSound,
@@ -13,10 +12,10 @@ import {
   isAudioUnlocked,
   stopSound,
 } from "@/lib/sound";
-import PWADebug from "@/components/pwa-debug";
 // import { webRTCService } from "@/lib/services/webrtc-service"; // REMOVIDO
 import VoiceCallFirebase from "@/components/voice-call-firebase";
 import AvailableCalls from "@/components/available-calls";
+import { openDoorbellPrintPage } from "@/lib/doorbell-print";
 import { onValue, ref } from "firebase/database";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
 import {
@@ -80,23 +79,24 @@ const DEFAULT_PERMISSION_STATUS: PermissionStatusMap = {
 const LATEST_RING_VISIBLE_MS = 60 * 1000;
 
 export function CallPageContent({ user }: CallPageContentProps) {
-  const { data: session } = useSession();
   const [isOnline, setIsOnline] = useState(true);
-  const [isInstallable, setIsInstallable] = useState(false);
   const deferredPromptRef = useRef<any>(null);
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
+  const [pwaUpdateRegistration, setPwaUpdateRegistration] =
+    useState<ServiceWorkerRegistration | null>(null);
 
   // Hook para configuração automática de subscriptions
   const {
     isConfiguring: isAutoConfiguring,
     isConfigured: notificationsConfigured,
     error: subscriptionError,
+    configure: configureNotifications,
   } = useAutoSubscription();
 
   // Status PWA
-  const [isPWA, setIsPWA] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [installPromptDismissed, setInstallPromptDismissed] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [latestRing, setLatestRing] = useState<{
     visitUuid: string;
     createdAt: string;
@@ -156,7 +156,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
         "(display-mode: standalone)",
       ).matches;
       const isIOSPWA = (window.navigator as any).standalone === true;
-      setIsPWA(isStandalone || isIOSPWA);
       setIsInstalled(isStandalone || isIOSPWA);
     };
 
@@ -169,9 +168,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
       const dismissedTime = parseInt(dismissed);
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-      if (dismissedTime > sevenDaysAgo) {
-        setInstallPromptDismissed(true);
-      } else {
+      if (dismissedTime <= sevenDaysAgo) {
         // Expirou, remover do localStorage
         localStorage.removeItem("pwa-install-dismissed");
       }
@@ -183,7 +180,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       deferredPromptRef.current = e;
-      setIsInstallable(true);
 
       // Mostrar banner se não foi dispensado e não está instalado
       if (!dismissed && !isInstalled) {
@@ -196,9 +192,15 @@ export function CallPageContent({ user }: CallPageContentProps) {
     // Event listener para instalação bem-sucedida
     const handleAppInstalled = () => {
       setIsInstalled(true);
-      setIsInstallable(false);
       setShowInstallBanner(false);
       localStorage.removeItem("pwa-install-dismissed");
+    };
+
+    const handlePWAUpdateAvailable = (
+      event: WindowEventMap["pwa-update-available"],
+    ) => {
+      setPwaUpdateAvailable(true);
+      setPwaUpdateRegistration(event.detail);
     };
 
     // Status online/offline
@@ -207,6 +209,10 @@ export function CallPageContent({ user }: CallPageContentProps) {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
+    window.addEventListener(
+      "pwa-update-available",
+      handlePWAUpdateAvailable,
+    );
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     window.addEventListener("focus", refreshPermissionStatus);
@@ -293,6 +299,10 @@ export function CallPageContent({ user }: CallPageContentProps) {
         handleBeforeInstallPrompt,
       );
       window.removeEventListener("appinstalled", handleAppInstalled);
+      window.removeEventListener(
+        "pwa-update-available",
+        handlePWAUpdateAvailable,
+      );
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("focus", refreshPermissionStatus);
@@ -325,11 +335,16 @@ export function CallPageContent({ user }: CallPageContentProps) {
       if (!ring?.visitUuid || !ring.createdAt) return;
 
       const ringKey = `${ring.visitUuid}:${ring.createdAt}`;
-      const isInitialValue = latestRingRef.current === null;
+      const previousRingKey = latestRingRef.current;
+      const isInitialValue = previousRingKey === null;
       const ringCreatedAtMs = Date.parse(ring.createdAt);
       const isRecentRing =
         Number.isFinite(ringCreatedAtMs) &&
         Date.now() - ringCreatedAtMs <= LATEST_RING_VISIBLE_MS;
+
+      if (previousRingKey === ringKey) {
+        return;
+      }
 
       latestRingRef.current = ringKey;
 
@@ -370,24 +385,35 @@ export function CallPageContent({ user }: CallPageContentProps) {
       const { outcome } = await deferredPromptRef.current.userChoice;
 
       if (outcome === "accepted") {
-        setIsInstallable(false);
         setIsInstalled(true);
         setShowInstallBanner(false);
       } else {
         // Usuário recusou, ocultar banner por um tempo
         setShowInstallBanner(false);
         localStorage.setItem("pwa-install-dismissed", Date.now().toString());
-        setInstallPromptDismissed(true);
       }
 
       deferredPromptRef.current = null;
+      return;
     }
+
+    setShowInstallHelp(true);
+  };
+
+  const applyPWAUpdate = () => {
+    const waitingWorker = pwaUpdateRegistration?.waiting;
+
+    if (!waitingWorker) {
+      window.location.reload();
+      return;
+    }
+
+    waitingWorker.postMessage({ type: "SKIP_WAITING" });
   };
 
   const dismissInstallBanner = () => {
     setShowInstallBanner(false);
     localStorage.setItem("pwa-install-dismissed", Date.now().toString());
-    setInstallPromptDismissed(true);
   };
 
   // Voice call functions - DESABILITADO (usando voice-call-firebase agora)
@@ -459,8 +485,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     }
   };
 
-  const playRingSound = enableResidentSound;
-
   const ignoreCurrentRing = () => {
     stopSound();
     setLatestRing(null);
@@ -470,7 +494,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) return;
 
-    await Notification.requestPermission();
+    await configureNotifications({ requestPermission: true });
     await refreshPermissionStatus();
   };
 
@@ -547,210 +571,206 @@ export function CallPageContent({ user }: CallPageContentProps) {
     },
   ];
 
-  const testUserProfile = async () => {
-    try {
-      const result = await ApiService.getUserProfile();
-      if (result.ok) {
-        alert(`✅ API Perfil: ${JSON.stringify(result.data, null, 2)}`);
-      } else {
-        alert(`❌ Erro API Perfil: ${result.error}`);
-      }
-    } catch (error: any) {
-      console.error("❌ Erro API Perfil:", error);
-      alert(`❌ Erro API Perfil: ${error.message}`);
-    }
-  };
+  const isIOS =
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid =
+    typeof navigator !== "undefined" &&
+    /Android/i.test(navigator.userAgent);
+  const isChrome =
+    typeof navigator !== "undefined" &&
+    /Chrome|CriOS/i.test(navigator.userAgent) &&
+    !/Edg|OPR|Firefox/i.test(navigator.userAgent);
+  const isEdge =
+    typeof navigator !== "undefined" && /Edg/i.test(navigator.userAgent);
+  const isSafari =
+    typeof navigator !== "undefined" &&
+    /Safari/i.test(navigator.userAgent) &&
+    !/Chrome|CriOS|Chromium|Edg|OPR|Firefox/i.test(navigator.userAgent);
 
-  const testAdminStats = async () => {
-    try {
-      const result = await ApiService.getAdminStats();
-      if (result.ok) {
-        alert(`✅ API Stats: ${JSON.stringify(result.data, null, 2)}`);
-      } else {
-        alert(`❌ Erro API Stats: ${result.error}`);
-      }
-    } catch (error: any) {
-      console.error("❌ Erro API Stats:", error);
-      alert(`❌ Erro API Stats: ${error.message}`);
-    }
-  };
+  const installHelpTitle = isIOS
+    ? "Instalar no iPhone"
+    : isAndroid
+      ? "Instalar no Android"
+      : "Instalar no computador";
 
-  const testDebugMiddleware = async () => {
-    try {
-      const result = await ApiService.debugMiddleware();
-      if (result.ok) {
-        alert(`✅ Middleware: ${JSON.stringify(result.data, null, 2)}`);
-      } else {
-        alert(`❌ Erro Middleware: ${result.error}`);
-      }
-    } catch (error: any) {
-      console.error("❌ Erro Middleware:", error);
-      alert(`❌ Erro Middleware: ${error.message}`);
-    }
-  };
+  const installHelpSteps = isIOS
+    ? [
+        "Abra esta página no Safari.",
+        "Toque em Compartilhar.",
+        "Escolha Adicionar à Tela de Início.",
+        "Confirme em Adicionar.",
+      ]
+    : isAndroid
+      ? [
+          "Abra esta página no Chrome.",
+          "Toque no menu de três pontos.",
+          "Escolha Instalar app ou Adicionar à tela inicial.",
+          "Confirme a instalação.",
+        ]
+      : isChrome
+        ? [
+            "No Chrome, abra o menu de três pontos.",
+            "Entre em Salvar e compartilhar.",
+            "Escolha Instalar página como app.",
+            "Confirme a instalação.",
+          ]
+        : isEdge
+          ? [
+              "No Edge, abra o menu de três pontos.",
+              "Entre em Aplicativos.",
+              "Escolha Instalar este site como aplicativo.",
+              "Confirme a instalação.",
+            ]
+          : isSafari
+            ? [
+                "No Safari, abra Arquivo no menu superior.",
+                "Escolha Adicionar ao Dock.",
+                "Confirme o nome do app.",
+                "Abra pela Dock quando precisar atender.",
+              ]
+            : [
+                "Abra o menu principal do navegador.",
+                "Procure por Instalar app, Aplicativos ou Adicionar à tela inicial.",
+                "Se essa opção não existir, use Chrome ou Edge para instalar o app.",
+              ];
 
-  const debugSubscriptions = async () => {
-    try {
-      const result = await ApiService.debugSubscriptions();
-      if (result.ok) {
-        const data = result.data;
+  const setupItems = [
+    {
+      label: "App instalado",
+      ready: isInstalled,
+      detail: isInstalled
+        ? "Abrindo como aplicativo."
+        : isIOS
+          ? "No iPhone, instale pela tela inicial."
+          : "Instale para abrir rápido e manter permissões.",
+    },
+    {
+      label: "Notificações",
+      ready: notificationsConfigured,
+      detail: notificationsConfigured
+        ? "Push configurado para este aparelho."
+        : isAutoConfiguring
+          ? "Aguardando permissão do navegador."
+          : subscriptionError || "Ative para receber chamadas.",
+    },
+    {
+      label: "Som",
+      ready: isSoundReady,
+      detail: isSoundReady
+        ? "Campainha liberada neste navegador."
+        : "Toque uma vez para liberar o som.",
+    },
+  ];
 
-        let report = `🔍 DEBUG SUBSCRIPTIONS:\n\n`;
-        report += `📊 Total: ${data.total}\n\n`;
-
-        if (data.total === 0) {
-          report += `❌ NENHUMA SUBSCRIPTION ENCONTRADA!\n`;
-          report += `🔧 Configure notificações no PWA primeiro.`;
-        } else {
-          report += `📋 Por Endereço:\n`;
-          for (const [addressId, subs] of Object.entries(data.byAddress)) {
-            report += `  🏠 AddressId ${addressId}: ${(subs as any[]).length} dispositivos\n`;
-          }
-
-          report += `\n🎯 Usuário atual: AddressId = ${user.addressId}\n`;
-
-          if (data.byAddress[user.addressId.toString()]) {
-            report += `✅ Encontrado ${data.byAddress[user.addressId.toString()].length} dispositivos para seu endereço`;
-          } else {
-            report += `❌ NENHUM dispositivo para seu endereço!`;
-          }
-        }
-
-        alert(report);
-      } else {
-        alert(`❌ Erro ao buscar subscriptions: ${result.error}`);
-      }
-    } catch (error: any) {
-      console.error("❌ Erro no debug:", error);
-      alert(`❌ Erro: ${error.message}`);
-    }
-  };
-
-  const forceUpdatePWA = async () => {
-    try {
-      if (!("serviceWorker" in navigator)) {
-        alert("❌ Service Worker não suportado neste navegador");
-        return;
-      }
-
-      // Remover todos os service workers
-      const registrations = await navigator.serviceWorker.getRegistrations();
-
-      for (const registration of registrations) {
-        await registration.unregister();
-      }
-
-      // Limpar cache
-      if ("caches" in window) {
-        const cacheNames = await caches.keys();
-
-        for (const cacheName of cacheNames) {
-          await caches.delete(cacheName);
-        }
-      }
-
-      // Limpar localStorage e sessionStorage relacionado ao PWA
-      localStorage.removeItem("notificationsConfigured");
-      sessionStorage.clear(); // Limpar controle de execução do hook
-
-      alert(
-        "✅ PWA atualizado! A página será recarregada em 2 segundos para aplicar as mudanças.",
-      );
-
-      // Recarregar página para reinstalar SW
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    } catch (error: any) {
-      console.error("❌ Erro ao forçar atualização:", error);
-      alert(`❌ Erro ao atualizar PWA: ${error.message}`);
-    }
-  };
+  const readyCount = setupItems.filter((item) => item.ready).length;
+  const setupComplete = readyCount === setupItems.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4">
       <div className="mx-auto max-w-4xl">
-        {/* Install PWA Banner */}
-        {showInstallBanner && !isInstalled && (
-          <div className="mb-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-4 shadow-lg animate-pulse">
-            <div className="flex flex-col items-start justify-start gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="text-2xl">📲</div>
-                <div>
-                  <h3 className="font-bold text-lg">
-                    🚨 Instale o App da Campainha
-                  </h3>
-                  <p className="text-sm text-blue-100">
-                    <strong>IMPORTANTE:</strong> Receba notificações mesmo com o
-                    navegador fechado e tenha acesso mais rápido
-                  </p>
-                  {/* Instruções específicas para iOS */}
-                  {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
-                    <p className="text-xs text-blue-200 mt-1">
-                      📱 iOS: Toque no botão &quot;Compartilhar&quot; e depois
-                      &quot;Adicionar à Tela de Início&quot;
-                    </p>
-                  )}
-                </div>
+        {/* Header */}
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-950 sm:text-3xl">
+              Painel de Atendimento
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              {user.name} · {isOnline ? "online" : "offline"}
+            </p>
+          </div>
+          <Button onClick={handleLogout} variant="outline" className="sm:w-auto">
+            Sair
+          </Button>
+        </div>
+
+        <Card className="mb-6 border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  Preparação do aparelho
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-gray-950">
+                  {setupComplete
+                    ? "Este aparelho está pronto para atender."
+                    : "Instale e libere alertas neste aparelho."}
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                  Para o morador, o melhor uso é como app instalado: abre mais
+                  rápido, mantém o painel acessível e recebe notificações quando
+                  o navegador está em segundo plano.
+                </p>
               </div>
-              <div className="flex items-center space-x-2">
-                {deferredPromptRef.current ? (
-                  <Button
-                    onClick={installApp}
-                    className="bg-white text-blue-600 hover:bg-blue-50 font-medium"
-                    size="sm"
-                  >
-                    📲 Instalar Agora
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => {
-                      // Para iOS e outros navegadores sem suporte ao beforeinstallprompt
-                      const userAgent = navigator.userAgent.toLowerCase();
-                      let instructions = "";
 
-                      if (/ipad|iphone|ipod/.test(userAgent)) {
-                        instructions =
-                          "📱 COMO INSTALAR NO iOS:\n\n1. Toque no botão 'Compartilhar' (quadrado com seta) na barra inferior\n2. Role para baixo e toque em 'Adicionar à Tela de Início'\n3. Toque em 'Adicionar' para confirmar\n\nApós isso, você terá o app na tela inicial!";
-                      } else if (userAgent.includes("android")) {
-                        instructions =
-                          "📱 COMO INSTALAR NO ANDROID:\n\n1. Toque no menu (três pontos) do navegador\n2. Toque em 'Instalar app' ou 'Adicionar à tela inicial'\n3. Confirme a instalação\n\nApós isso, você terá o app na tela inicial!";
-                      } else {
-                        instructions =
-                          "💻 COMO INSTALAR NO DESKTOP:\n\n1. Procure pelo ícone de instalação na barra de endereços\n2. OU vá no menu do navegador > 'Instalar [nome do app]'\n3. Confirme a instalação\n\nApós isso, você terá o app como aplicativo desktop!";
-                      }
-
-                      alert(instructions);
-                    }}
-                    className="bg-white text-blue-600 hover:bg-blue-50 font-medium"
-                    size="sm"
+              <div className="grid gap-2 sm:grid-cols-3">
+                {setupItems.map((item) => (
+                  <div
+                    key={item.label}
+                    className={`rounded-md border p-3 ${
+                      item.ready
+                        ? "border-green-200 bg-green-50 text-green-900"
+                        : "border-amber-200 bg-amber-50 text-amber-950"
+                    }`}
                   >
-                    📖 Como Instalar
+                    <p className="text-sm font-semibold">
+                      {item.ready ? "OK" : "Pendente"} · {item.label}
+                    </p>
+                    <p className="mt-1 text-xs">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+
+              {!isInstalled && !deferredPromptRef.current && (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  {isIOS
+                    ? "No iPhone, a instalação fica no botão Compartilhar do Safari."
+                    : isAndroid
+                      ? "No Android, a instalação fica no menu de três pontos do Chrome."
+                      : isChrome
+                        ? "No Chrome, a instalação fica em Menu > Salvar e compartilhar > Instalar página como app."
+                        : "A instalação depende do navegador. Abra o guia abaixo para ver o caminho."}
+                </div>
+              )}
+            </div>
+
+            <div className="flex min-w-full flex-col gap-2 lg:min-w-56">
+              {!isInstalled && (
+                <Button onClick={installApp} className="w-full">
+                  {deferredPromptRef.current ? "Instalar app" : "Como instalar"}
+                </Button>
+              )}
+              {!isSoundReady && (
+                <Button onClick={enableResidentSound} variant="outline">
+                  Ativar som
+                </Button>
+              )}
+              {permissionStatus.notifications !== "granted" &&
+                permissionStatus.notifications !== "unsupported" && (
+                  <Button onClick={requestNotificationPermission} variant="outline">
+                    Ativar notificações
                   </Button>
                 )}
+              {pwaUpdateAvailable && (
+                <Button
+                  onClick={applyPWAUpdate}
+                  className="bg-blue-700 hover:bg-blue-800"
+                >
+                  Atualizar app
+                </Button>
+              )}
+              {showInstallBanner && !isInstalled && (
                 <Button
                   onClick={dismissInstallBanner}
                   variant="ghost"
-                  className="text-white hover:bg-white/20"
-                  size="sm"
+                  className="text-gray-600"
                 >
-                  ✕
+                  Lembrar depois
                 </Button>
-              </div>
+              )}
             </div>
           </div>
-        )}
-
-        {/* Header */}
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">
-            🔔 Painel de Atendimento
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Bem-vindo, {user.name}! Seu sistema está{" "}
-            {isOnline ? "🟢 online" : "🔴 offline"}
-          </p>
-        </div>
+        </Card>
 
         <Card className="mb-6 p-6">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -829,6 +849,17 @@ export function CallPageContent({ user }: CallPageContentProps) {
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               onClick={() =>
+                openDoorbellPrintPage({
+                  addressUuid: user.address.addressUuid,
+                  residentName: user.name,
+                })
+              }
+              variant="outline"
+            >
+              🖨️ Placa para imprimir
+            </Button>
+            <Button
+              onClick={() =>
                 window.open(`/v/${user.address.addressUuid}`, "_blank")
               }
               className="bg-blue-600 text-white hover:bg-blue-700"
@@ -887,219 +918,36 @@ export function CallPageContent({ user }: CallPageContentProps) {
           distance={null}
         />
 
-        {/* PWA Status Card */}
-        <Card className="mb-6 p-6">
-          <h2 className="mb-4 text-xl font-semibold">📱 Status do PWA</h2>
-
-          {/* Banner de instalação crítico */}
-          {!isInstalled &&
-            !notificationsConfigured &&
-            !installPromptDismissed && (
-              <div className="mb-4 bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <div className="text-2xl">⚠️</div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-red-800">
-                      Instalação Recomendada
-                    </h3>
-                    <p className="text-sm text-red-700 mb-3">
-                      Para receber notificações da campainha quando o navegador
-                      estiver fechado, é <strong>altamente recomendado</strong>{" "}
-                      instalar o aplicativo.
-                    </p>
-                    <div className="flex space-x-2">
-                      {deferredPromptRef.current ? (
-                        <Button
-                          onClick={installApp}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                          size="sm"
-                        >
-                          📲 Instalar Agora
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => {
-                            const userAgent = navigator.userAgent.toLowerCase();
-                            let instructions = "";
-
-                            if (/ipad|iphone|ipod/.test(userAgent)) {
-                              instructions =
-                                "📱 INSTALAR NO iOS:\n\n1. Toque no botão 'Compartilhar' (⬆️) na barra inferior\n2. Role para baixo e toque em 'Adicionar à Tela de Início'\n3. Toque em 'Adicionar'\n\n✅ O app aparecerá na sua tela inicial!";
-                            } else if (userAgent.includes("android")) {
-                              instructions =
-                                "📱 INSTALAR NO ANDROID:\n\n1. Toque no menu (⋮) do navegador\n2. Toque em 'Instalar app' ou 'Adicionar à tela inicial'\n3. Confirme a instalação\n\n✅ O app aparecerá na sua tela inicial!";
-                            } else {
-                              instructions =
-                                "💻 INSTALAR NO DESKTOP:\n\n1. Procure pelo ícone de instalação (⬇️) na barra de endereços\n2. OU vá no menu do navegador > 'Instalar aplicativo'\n3. Confirme a instalação\n\n✅ O app será instalado como aplicativo!";
-                            }
-
-                            alert(instructions);
-                          }}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                          size="sm"
-                        >
-                          📖 Ver Instruções
-                        </Button>
-                      )}
-                      <Button
-                        onClick={dismissInstallBanner}
-                        variant="outline"
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                        size="sm"
-                      >
-                        Mais tarde
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <p>
-                🔧 <strong>PWA Instalado:</strong>{" "}
-                {isInstalled ? "✅ Sim" : "❌ Não"}
-              </p>
-              <p>
-                🔔 <strong>Notificações:</strong>{" "}
-                {notificationsConfigured
-                  ? "✅ Permitidas"
-                  : subscriptionError
-                    ? "❌ Negadas"
-                    : "⚠️ Configurando..."}
-              </p>
-              <p>
-                📡 <strong>Push Configurado:</strong>{" "}
-                {isAutoConfiguring
-                  ? "🔄 Configurando automaticamente..."
-                  : notificationsConfigured
-                    ? "✅ Sim"
-                    : "❌ Não"}
-              </p>
-              {isAutoConfiguring && (
-                <p className="text-sm text-blue-600">
-                  🔍 Verificando subscriptions após login...
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              {isInstallable && (
-                <Button onClick={installApp} className="w-full">
-                  📲 Instalar PWA
-                </Button>
-              )}
-
-              {!notificationsConfigured && isAutoConfiguring && (
-                <div className="w-full text-center py-2 px-4 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-blue-700 font-medium">
-                    🔄 Configurando automaticamente...
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Aceite a permissão se solicitada pelo navegador
-                  </p>
-                </div>
-              )}
-
-              {!notificationsConfigured && !isAutoConfiguring && (
-                <div className="w-full text-center py-2 px-4 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-red-700 font-medium">
-                    ❌ Configuração automática falhou
-                  </p>
-                  {subscriptionError && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Erro: {subscriptionError}
-                    </p>
-                  )}
-                  <p className="text-xs text-red-600 mt-1">
-                    Verifique as configurações de notificação do navegador
-                  </p>
-                </div>
-              )}
-
-              {notificationsConfigured && (
-                <div className="text-center text-green-600 font-medium">
-                  ✅ Sistema totalmente configurado!
-                </div>
-              )}
-
-              {/* Botão de Atualização PWA */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <Button
-                  onClick={forceUpdatePWA}
-                  variant="outline"
-                  size="sm"
-                  className="w-full bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
-                >
-                  🔄 Forçar Atualização do PWA
-                </Button>
-                <p className="text-xs text-blue-600 mt-2 text-center">
-                  Use se o som da campainha não estiver funcionando
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* PWA Debug */}
-        <PWADebug />
-
-        {/* Test Buttons */}
-        <Card className="mb-6 p-6">
-          <h2 className="mb-4 text-xl font-semibold">🧪 Testes do Sistema</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Button onClick={playRingSound} variant="outline">
-              🔔 Som da Campainha
-            </Button>
-
-            <Button
-              onClick={() => window.open("/teste-campainha", "_blank")}
-              variant="outline"
-            >
-              🚪 Página Visitante
-            </Button>
-
-            <Button onClick={testUserProfile} variant="outline">
-              👤 API Perfil
-            </Button>
-
-            <Button onClick={testAdminStats} variant="outline">
-              📊 API Stats
-            </Button>
-
-            <Button onClick={testDebugMiddleware} variant="outline">
-              🛡️ Debug Middleware
-            </Button>
-
-            <Button onClick={debugSubscriptions} variant="outline">
-              🔍 Debug Subscriptions
-            </Button>
-          </div>
-        </Card>
-
-        {/* Instructions */}
-        <Card className="p-6">
-          <h2 className="mb-4 text-xl font-semibold">📋 Instruções</h2>
-          <div className="space-y-3 text-gray-700">
-            <p>
-              1. <strong>Instale o PWA</strong> para receber notificações mesmo
-              com o app fechado
-            </p>
-            <p>
-              2. <strong>Configure as notificações</strong> para ser alertado
-              quando alguém tocar a campainha
-            </p>
-            <p>
-              3. <strong>Compartilhe o QR Code</strong> do seu endereço para que
-              visitantes possam tocar sua campainha
-            </p>
-            <p>
-              4. <strong>Mantenha o volume alto</strong> para ouvir os alertas
-              de campainha
-            </p>
-          </div>
-        </Card>
-
         {/* Voice Call Dialog */}
+        <Dialog open={showInstallHelp} onOpenChange={setShowInstallHelp}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{installHelpTitle}</DialogTitle>
+              <DialogDescription>
+                Se o botão nativo de instalação não apareceu, use o caminho do
+                navegador.
+              </DialogDescription>
+            </DialogHeader>
+
+            <ol className="space-y-3 text-sm text-gray-700">
+              {installHelpSteps.map((step, index) => (
+                <li key={step} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-800">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+
+            <DialogFooter>
+              <Button onClick={() => setShowInstallHelp(false)}>
+                Entendi
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={showVoiceCallDialog} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>

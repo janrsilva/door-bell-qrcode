@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import ApiService from "@/lib/api";
 
@@ -7,12 +7,11 @@ export function useAutoSubscription() {
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasRun, setHasRun] = useState(false); // Controlar execução única
 
-  useEffect(() => {
-    const autoConfigureSubscriptions = async () => {
+  const configure = useCallback(
+    async ({ requestPermission = false } = {}) => {
       // Só executar se usuário estiver logado E ainda não executou nesta sessão
-      if (!session?.user || hasRun) return;
+      if (!session?.user) return;
 
       // Verificar se já configurou nesta sessão
       const sessionKey = `subscription_configured_${session.user.id}`;
@@ -20,12 +19,10 @@ export function useAutoSubscription() {
 
       if (alreadyConfigured) {
         setIsConfigured(true);
-        setHasRun(true);
         return;
       }
 
       try {
-        setHasRun(true); // Marcar como executado
         setIsConfiguring(true);
         setError(null);
 
@@ -64,11 +61,19 @@ export function useAutoSubscription() {
           return;
         }
 
-        // Solicitar permissão de notificação
-        const permission = await Notification.requestPermission();
+        let permission = Notification.permission;
+
+        if (permission !== "granted" && requestPermission) {
+          permission = await Notification.requestPermission();
+        }
 
         if (permission !== "granted") {
-          throw new Error(`Permissão de notificação ${permission}`);
+          setError(
+            permission === "denied"
+              ? "Notificações bloqueadas no navegador"
+              : "Ative notificações para receber chamadas",
+          );
+          return;
         }
 
         // Verificar VAPID key
@@ -106,17 +111,23 @@ export function useAutoSubscription() {
       } finally {
         setIsConfiguring(false);
       }
-    };
+    },
+    [session],
+  );
 
+  useEffect(() => {
     // Executar com delay para garantir que o componente terminou de carregar
-    const timeoutId = setTimeout(autoConfigureSubscriptions, 500);
+    const timeoutId = setTimeout(() => {
+      void configure({ requestPermission: false });
+    }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [session]); // Depende apenas da sessão
+  }, [configure]);
 
   return {
     isConfiguring,
     isConfigured,
     error,
+    configure,
   };
 }

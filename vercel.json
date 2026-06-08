@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter doorbell build",
+  "devCommand": "pnpm --filter doorbell dev",
+  "framework": "nextjs",
+  "outputDirectory": "apps/doorbell/.next"
+}

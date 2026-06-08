@@ -1,70 +1,57 @@
-# Doorbell - Electronic Doorbell
+# Doorbell
 
-A lean, SSR-first Next.js application for electronic doorbell functionality.
+Aplicacao Next.js da campainha eletronica.
 
-## Features
+## Desenvolvimento
 
-- **SSR-first**: Minimal JavaScript payload with server-side rendering
-- **Edge Runtime**: Low latency API endpoints
-- **Single Client Component**: Only the ring button is client-side rendered
-- **Geolocation**: Optional location tracking for security
-- **Modern UI**: Built with Tailwind CSS and shadcn/ui components
+Execute a partir da raiz do repositorio:
 
-## Tech Stack
-
-- Next.js 15 with App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui components
-- Edge Runtime for API routes
-
-## Getting Started
-
-1. Install dependencies:
 ```bash
-npm install
+pnpm install
+cp apps/doorbell/.env.example apps/doorbell/.env.local
+pnpm env:check
+pnpm dev:doorbell
 ```
 
-2. Run the development server:
+URL local:
+
+```text
+http://localhost:3333
+```
+
+Rotas principais:
+
+- `/resident`: painel do morador
+- `/v/[addressUuid]`: URL impressa no QR code
+- `/visitor/[visitId]`: pagina de visita de uso unico
+
+## Build
+
 ```bash
-npm run dev
+pnpm build:doorbell
 ```
 
-3. Open [http://localhost:3000/v/teste123](http://localhost:3000/v/teste123)
+O build executa `prisma generate` antes do `next build`, para funcionar igual no ambiente da Vercel.
 
-## Project Structure
+Na Vercel, o script `build` executa `prisma migrate deploy` antes do `next build`, aplicando migrations automaticamente quando houver deploy por push.
 
-```
-doorbell/
-├─ src/
-│  ├─ app/
-│  │  ├─ layout.tsx              # SSR layout without global hydration
-│  │  ├─ globals.css             # Tailwind CSS with shadcn/ui variables
-│  │  ├─ v/
-│  │  │  └─ [id]/
-│  │  │     └─ page.tsx          # SSR doorbell page
-│  │  └─ api/
-│  │     └─ ring/
-│  │        └─ route.ts          # Edge API endpoint for ringing
-│  └─ components/
-│     ├─ ui/                     # shadcn/ui components
-│     └─ ring-button.tsx         # ONLY client component
-├─ tailwind.config.ts
-├─ tsconfig.json
-└─ package.json
+## Vercel
+
+O deploy deve ser criado/linkado pela raiz do monorepo. Use os scripts da raiz:
+
+```bash
+pnpm vercel:link
+pnpm vercel:pull
+pnpm vercel:build
+pnpm vercel:deploy
 ```
 
-## Why It Loads Super Fast
+Configuracao esperada:
 
-- **SSR + Server Components by default**: Almost no JavaScript hydrates on the client
-- **Only 1 small client component**: The ring button
-- **Edge runtime** on endpoint for low latency
-- **No heavy external libraries**: UI via shadcn/ui (tree-shaken, Tailwind)
+- Install Command: `pnpm install --frozen-lockfile`
+- Build Command: `pnpm --filter doorbell build`
+- Output Directory: `apps/doorbell/.next`
 
-## Future Enhancements
+## Variaveis
 
-- Rate limiting + captcha (Cloudflare Turnstile)
-- Ephemeral token linked to QR/id
-- Push notifications to resident app (Web Push/FCM)
-- Permission gates (mic/cam/geo) and WebRTC call flow
-- Gate paper branding and text
+Use `.env.example` como contrato de variaveis. O arquivo real `.env.local` nao deve ser commitado.

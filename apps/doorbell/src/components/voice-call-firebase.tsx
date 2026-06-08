@@ -19,6 +19,7 @@ interface VisitSnapshot {
   uuid?: string;
   webRtcOffer?: { sdp: string; createdAt: string } | null;
   webRtcAnswer?: { sdp: string; createdAt: string } | null;
+  visitorPreview?: { dataUrl: string; createdAt: string } | null;
   status?: "offer_created" | "answered" | "ended" | string;
   iceCandidates?: Record<
     string,
@@ -35,6 +36,48 @@ interface VisitSnapshot {
 interface AddressSnapshot {
   onCallVisit?: VisitSnapshot | null;
   visits?: Record<string, VisitSnapshot>;
+}
+
+async function captureVideoPreview(
+  stream: MediaStream,
+): Promise<string | null> {
+  const [videoTrack] = stream.getVideoTracks();
+  if (!videoTrack) return null;
+
+  const video = document.createElement("video");
+  video.srcObject = stream;
+  video.muted = true;
+  video.playsInline = true;
+
+  try {
+    await video.play();
+    await new Promise<void>((resolve) => {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        resolve();
+        return;
+      }
+
+      video.onloadeddata = () => resolve();
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 160;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const sx = Math.max((video.videoWidth - size) / 2, 0);
+    const sy = Math.max((video.videoHeight - size) / 2, 0);
+
+    context.drawImage(video, sx, sy, size, size, 0, 0, 160, 160);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  } catch (error) {
+    console.warn("Não foi possível capturar preview do visitante", error);
+    return null;
+  } finally {
+    video.srcObject = null;
+  }
 }
 
 interface Props {
@@ -458,13 +501,12 @@ export default function VoiceCallFirebase(props: Props) {
     }
 
     if (
-      ["disconnected", "failed", "closed"].includes(connectionState) &&
+      ["failed", "closed"].includes(connectionState) &&
       callState === "connected"
     ) {
-      setCallState("ended");
-      setStatusMessage("Chamada finalizada");
+      void cleanupCall(true, "Chamada finalizada");
     }
-  }, [connectionState, callState]);
+  }, [connectionState, callState, cleanupCall]);
 
   const ensureVisitId = useCallback((): string => {
     // Para visitor, usa startVisitUuid
@@ -489,7 +531,11 @@ export default function VoiceCallFirebase(props: Props) {
   }, [role, startVisitUuid, visitData?.uuid]);
 
   const postOffer = useCallback(
-    async (offer: RTCSessionDescriptionInit, coords: Coordinates) => {
+    async (
+      offer: RTCSessionDescriptionInit,
+      coords: Coordinates,
+      visitorPreviewDataUrl?: string | null,
+    ) => {
       const id = ensureVisitId();
       try {
         setIsBusy(true);
@@ -507,6 +553,7 @@ export default function VoiceCallFirebase(props: Props) {
           body: JSON.stringify({
             sdp: offer.sdp,
             coords: coords,
+            visitorPreviewDataUrl,
           }),
         });
 
@@ -621,14 +668,15 @@ export default function VoiceCallFirebase(props: Props) {
       activeVisitIdRef.current = startVisitUuid;
       activeOfferRef.current = null;
 
-      await ensureLocalStream({ withVideo: true });
+      const stream = await ensureLocalStream({ withVideo: true });
+      const visitorPreviewDataUrl = await captureVideoPreview(stream);
       const offer = await createOffer({
         receiveAudio: true,
         receiveVideo: true,
         withLocalVideo: true,
       });
 
-      const sent = await postOffer(offer, currentCoords);
+      const sent = await postOffer(offer, currentCoords, visitorPreviewDataUrl);
       if (sent) {
         // Aguardar um pouco para garantir que o Firebase foi atualizado
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -709,6 +757,12 @@ export default function VoiceCallFirebase(props: Props) {
     visitData?.uuid,
   ]);
 
+  const handleRejectCall = useCallback(async () => {
+    if (role !== "resident" || !visitData?.uuid) return;
+
+    await cleanupCall(true, "Chamada recusada");
+  }, [role, visitData?.uuid, cleanupCall]);
+
   const callAllowed =
     !disabled &&
     (role === "visitor"
@@ -716,8 +770,14 @@ export default function VoiceCallFirebase(props: Props) {
         (distance === null || distance <= MAX_DISTANCE)
       : Boolean(visitData?.uuid));
 
+  const isActiveVisitorCall =
+    role === "visitor" &&
+    (callState === "calling" ||
+      callState === "ringing" ||
+      callState === "connected");
   const renderStreams = hasLocalStream || hasRemoteStream;
-  const showFullscreenVideo = renderStreams && callState !== "idle";
+  const showFullscreenVideo =
+    isActiveVisitorCall || (renderStreams && callState !== "idle");
 
   return (
     <div className="relative">
@@ -807,11 +867,30 @@ export default function VoiceCallFirebase(props: Props) {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Visita atual: {visitData?.uuid ? visitData.uuid : "nenhuma"}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted text-xl">
+                    {visitData?.visitorPreview?.dataUrl ? (
+                      <img
+                        src={visitData.visitorPreview.dataUrl}
+                        alt="Prévia do visitante"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span>📞</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">
+                      {incomingOffer ? "Visitante chamando" : "Sem chamada"}
+                    </p>
+                    <p className="truncate">
+                      Visita atual:{" "}
+                      {visitData?.uuid ? visitData.uuid : "nenhuma"}
+                    </p>
+                  </div>
                 </div>
                 {incomingOffer ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <Button
                       onClick={() => handleAcceptCall(false)}
                       disabled={isBusy || callState === "connected"}
@@ -826,6 +905,14 @@ export default function VoiceCallFirebase(props: Props) {
                       variant="outline"
                     >
                       📹 Atender com vídeo
+                    </Button>
+                    <Button
+                      onClick={handleRejectCall}
+                      disabled={isBusy || callState === "connected"}
+                      className="w-full"
+                      variant="destructive"
+                    >
+                      Recusar
                     </Button>
                   </div>
                 ) : (

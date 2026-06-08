@@ -6,19 +6,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Download, QrCode, CheckCircle } from "lucide-react";
+import { Printer, QrCode, CheckCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface QRDownloadStepProps {
   userId?: number;
   addressUuid?: string;
-  onDownloadQR: () => void;
+  onPrintQR: () => void;
 }
 
 export default function QRDownloadStep({
   userId,
   addressUuid,
-  onDownloadQR,
+  onPrintQR,
 }: QRDownloadStepProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -113,13 +113,13 @@ export default function QRDownloadStep({
 
           <div className="flex gap-2">
             <Button
-              onClick={onDownloadQR}
+              onClick={onPrintQR}
               className="flex-1"
               size="lg"
               disabled={!addressUuid}
             >
-              <Download className="w-4 h-4 mr-2" />
-              Baixar PDF
+              <Printer className="w-4 h-4 mr-2" />
+              Imprimir
             </Button>
             {qrCodeUrl && (
               <Button

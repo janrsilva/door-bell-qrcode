@@ -11,6 +11,7 @@ import PersonalDataStep from "./steps/personal-data-step";
 import AddressStep from "./steps/address-step";
 import LocationStep from "./steps/location-step";
 import QRDownloadStep from "./steps/qr-download-step";
+import { openDoorbellPrintPage } from "@/lib/doorbell-print";
 
 export default function RegistrationForm() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -119,31 +120,18 @@ export default function RegistrationForm() {
     }
   };
 
-  const handleDownloadQR = async () => {
+  const handlePrintQR = () => {
     if (!addressUuid) return;
 
     try {
-      const params = new URLSearchParams({
-        addressUuid: addressUuid,
+      openDoorbellPrintPage({
+        addressUuid,
+        residentName: form.getValues("name"),
+        autoPrint: true,
       });
-
-      const userName = form.getValues("name");
-      if (userName) {
-        params.append("userName", userName);
-      }
-
-      const pdfUrl = `/api/pdf?${params.toString()}`;
-
-      // Create a temporary link to download the PDF
-      const link = document.createElement("a");
-      link.href = pdfUrl;
-      link.download = `campainha-${addressUuid}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
     } catch (error) {
-      console.error("Erro ao baixar PDF:", error);
-      alert("Erro ao baixar PDF. Tente novamente.");
+      console.error("Erro ao preparar impressão:", error);
+      alert("Erro ao preparar impressão. Tente novamente.");
     }
   };
 
@@ -160,7 +148,7 @@ export default function RegistrationForm() {
           <QRDownloadStep
             userId={userId}
             addressUuid={addressUuid}
-            onDownloadQR={handleDownloadQR}
+            onPrintQR={handlePrintQR}
           />
         );
       default:

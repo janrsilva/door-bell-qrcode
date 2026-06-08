@@ -208,6 +208,17 @@ export function FullscreenVideo({
         </div>
       )}
 
+      {!showRemoteVideo && !showLocalVideo && !showFallbackLocal && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="text-center text-white">
+            <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-3" />
+            <p className="text-lg font-medium">
+              {role === "visitor" ? "Chamando..." : "Preparando chamada..."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Vídeo menor no canto esquerdo inferior - ratio 9:16 para mobile */}
       <div className="absolute bottom-4 left-4 w-20 h-36 bg-black rounded-lg overflow-hidden shadow-lg border-2 border-white/20 z-15">
         {/* Mostrar o vídeo oposto ao que está em tela cheia */}

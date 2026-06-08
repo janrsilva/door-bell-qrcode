@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import SoundManager from "@/components/SoundManager";
+import PWAController from "@/components/PWAController";
 
 export const metadata: Metadata = {
   title: "CAMPAINHA ELETRÔNICA",
   description: "Toque a campainha de forma simples e rápida.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -39,6 +39,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link
@@ -53,33 +54,10 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
         <SessionProvider>
+          <PWAController />
           <SoundManager />
           {children}
         </SessionProvider>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-
-                      // Verificar se está ativo
-                      if (registration.active) {
-                        // SW ativo
-                      } else {
-                        // SW aguardando ativação
-                      }
-                    }, function(err) {
-                      // Falha ao registrar SW
-                    });
-                });
-              } else {
-                // Service Worker não suportado
-              }
-            `,
-          }}
-        />
       </body>
     </html>
   );

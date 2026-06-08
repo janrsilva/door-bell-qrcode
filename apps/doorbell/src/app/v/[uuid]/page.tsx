@@ -1,7 +1,6 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import RingButton from "@/components/ring-button";
 import { SimpleDoorbellService } from "@/lib/services/simple-doorbell-service";
 
 export const dynamic = "force-dynamic";
@@ -38,28 +37,5 @@ export default async function CampainhaPage({ params }: Props) {
     );
   }
 
-  // Redirect to the single-use page immediately
-  return (
-    <div>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-                // Redirect to the single-use page immediately
-                window.location.replace('/visitor/${visitResult.visit.uuid}');
-              `,
-        }}
-      />
-      <main className="min-h-dvh flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-5 space-y-4">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <h1 className="text-xl font-semibold">Redirecionando...</h1>
-            <p className="text-sm text-muted-foreground text-center">
-              Aguarde enquanto redirecionamos para a página da campainha.
-            </p>
-          </div>
-        </Card>
-      </main>
-    </div>
-  );
+  redirect(`/visitor/${visitResult.visit.uuid}`);
 }

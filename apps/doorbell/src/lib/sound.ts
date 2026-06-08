@@ -22,6 +22,10 @@ export function setSoundConfig(cfg: SoundConfig) {
   localStorage.setItem(KEY, JSON.stringify(cfg));
 }
 
+function normalizeSoundFile(file: string): string {
+  return file.replace(/^\/?sounds\//, "");
+}
+
 /**
  * Importante: o navegador só permite tocar áudio sem bloqueio
  * se já houve interação do usuário (clique, toque, etc).
@@ -41,8 +45,8 @@ export async function unlockAudio(initialFile?: string): Promise<boolean> {
   );
   audioEl.preload = "auto";
 
-  // Tocar e pausar rapidamente para "inicializar" o contexto
-  audioEl.volume = 0.0001;
+  // Tocar e pausar rapidamente para "inicializar" o contexto sem som audível.
+  audioEl.volume = 0;
   try {
     await audioEl.play();
     audioEl.pause();
@@ -70,7 +74,7 @@ export async function playSound(file?: string): Promise<boolean> {
     return false;
   }
 
-  const chosen = file || cfg.file || "doorbell.mp3";
+  const chosen = normalizeSoundFile(file || cfg.file || "doorbell.mp3");
   const src = `/sounds/${chosen}`;
 
   try {
