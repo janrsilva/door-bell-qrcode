@@ -1,6 +1,14 @@
 type OpenDoorbellPrintPageOptions = {
   addressUuid: string;
-  residentName?: string;
+  address?: {
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
   autoPrint?: boolean;
 };
 
@@ -15,7 +23,7 @@ function escapeHtml(value: string) {
 
 export function openDoorbellPrintPage({
   addressUuid,
-  residentName,
+  address,
   autoPrint = false,
 }: OpenDoorbellPrintPageOptions) {
   const qrUrl = `${window.location.origin}/api/qr?${new URLSearchParams({
@@ -49,7 +57,7 @@ export function openDoorbellPrintPage({
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 28px;
+      gap: 24px;
     }
     h1 {
       margin: 0;
@@ -60,7 +68,7 @@ export function openDoorbellPrintPage({
       text-transform: uppercase;
     }
     .qr-box {
-      width: 142mm;
+      width: 150mm;
       max-width: 100%;
       margin: 0 auto;
       padding: 12mm;
@@ -73,7 +81,8 @@ export function openDoorbellPrintPage({
       height: auto;
     }
     .instructions {
-      max-width: 150mm;
+      width: 150mm;
+      max-width: 100%;
       margin: 0 auto;
       padding: 12px 16px;
       border-left: 5px solid #2563eb;
@@ -83,10 +92,53 @@ export function openDoorbellPrintPage({
       line-height: 1.45;
       color: #1e3a8a;
     }
-    .resident {
+    .address-card {
+      width: 150mm;
+      max-width: 100%;
+      margin: 18px auto 0;
+      border: 2px solid #111827;
+      border-radius: 8px;
+      overflow: hidden;
+      text-align: left;
+    }
+    .address-label {
+      display: block;
+      padding: 8px 14px;
+      background: #111827;
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    .address-body {
+      padding: 14px 16px 16px;
+      background: #f9fafb;
+    }
+    .address-primary {
       margin: 0;
-      font-size: 16px;
-      color: #4b5563;
+      color: #111827;
+      font-size: 30px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+    .address-complement {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: #dbeafe;
+      color: #1e3a8a;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 800;
+    }
+    .address-details {
+      margin: 10px 0 0;
+      color: #374151;
+      font-size: 17px;
+      line-height: 1.35;
+      font-weight: 600;
     }
     .actions {
       position: fixed;
@@ -119,7 +171,25 @@ export function openDoorbellPrintPage({
   <main>
     <header>
       <h1>Campainha<br />Eletrônica</h1>
-      ${residentName ? `<p class="resident">${escapeHtml(residentName)}</p>` : ""}
+      ${
+        address
+          ? `<section class="address-card" aria-label="Endereço">
+        <span class="address-label">Confirme o endereço</span>
+        <div class="address-body">
+          <p class="address-primary">${escapeHtml(address.street)}, ${escapeHtml(address.number)}</p>
+          ${
+            address.complement
+              ? `<span class="address-complement">${escapeHtml(address.complement)}</span>`
+              : ""
+          }
+          <p class="address-details">
+            ${escapeHtml(address.neighborhood)}<br />
+            ${escapeHtml(address.city)}, ${escapeHtml(address.state)} · CEP ${escapeHtml(address.zipCode)}
+          </p>
+        </div>
+      </section>`
+          : ""
+      }
     </header>
     <section class="qr-box">
       <img src="${qrUrl}" alt="QR Code da Campainha" />

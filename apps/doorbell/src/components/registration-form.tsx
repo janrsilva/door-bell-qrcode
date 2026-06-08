@@ -124,9 +124,10 @@ export default function RegistrationForm() {
     if (!addressUuid) return;
 
     try {
+      const address = form.getValues();
       openDoorbellPrintPage({
         addressUuid,
-        residentName: form.getValues("name"),
+        address,
         autoPrint: true,
       });
     } catch (error) {

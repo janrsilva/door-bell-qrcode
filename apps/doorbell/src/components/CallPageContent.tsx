@@ -40,6 +40,7 @@ interface CallPageContentProps {
       addressUuid: string;
       street: string;
       number: string;
+      complement?: string | null;
       neighborhood: string;
       city: string;
       state: string;
@@ -839,6 +840,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
               <p>
                 {user.address.street}, {user.address.number}
               </p>
+              {user.address.complement && <p>{user.address.complement}</p>}
               <p>{user.address.neighborhood}</p>
               <p>
                 {user.address.city}, {user.address.state}
@@ -851,7 +853,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
               onClick={() =>
                 openDoorbellPrintPage({
                   addressUuid: user.address.addressUuid,
-                  residentName: user.name,
+                  address: user.address,
                 })
               }
               variant="outline"
