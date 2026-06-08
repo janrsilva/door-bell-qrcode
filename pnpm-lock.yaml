@@ -105,6 +105,9 @@ importers:
         specifier: ^4.1.8
         version: 4.4.3
     devDependencies:
+      '@types/google.maps':
+        specifier: 3.58.1
+        version: 3.58.1
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10

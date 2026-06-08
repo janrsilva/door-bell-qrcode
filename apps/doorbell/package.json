@@ -45,6 +45,7 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@types/google.maps": "3.58.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
