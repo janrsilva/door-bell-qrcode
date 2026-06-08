@@ -903,6 +903,15 @@ export function CallPageContent({ user }: CallPageContentProps) {
                 🔕 Ignorar
               </Button>
             </div>
+            <div className="mt-4 rounded-md border border-yellow-300 bg-white p-4">
+              <VoiceCallFirebase
+                role="resident"
+                addressUuid={user.address.addressUuid}
+                visitorCoords={null}
+                distance={null}
+                embedded
+              />
+            </div>
           </Card>
         )}
 
@@ -913,12 +922,14 @@ export function CallPageContent({ user }: CallPageContentProps) {
         />
 
         {/* WebRTC Voice Call Component */}
-        <VoiceCallFirebase
-          role="resident"
-          addressUuid={user.address.addressUuid}
-          visitorCoords={null}
-          distance={null}
-        />
+        {!latestRing && (
+          <VoiceCallFirebase
+            role="resident"
+            addressUuid={user.address.addressUuid}
+            visitorCoords={null}
+            distance={null}
+          />
+        )}
 
         {/* Voice Call Dialog */}
         <Dialog open={showInstallHelp} onOpenChange={setShowInstallHelp}>

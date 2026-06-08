@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { onValue, ref } from "firebase/database";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
 import { useDoorbellWebRTC } from "@/hooks/useDoorbellWebRTC";
 import { useCallingSound } from "@/hooks/useCallingSound";
@@ -149,6 +148,7 @@ interface Props {
   visitorCoords: Coordinates | null;
   distance: number | null;
   disabled?: boolean;
+  embedded?: boolean;
   onCallStart?: () => Promise<void>;
   onRequestLocation?: () => Promise<{
     success: boolean;
@@ -166,6 +166,7 @@ export default function VoiceCallFirebase(props: Props) {
     visitorCoords,
     distance,
     disabled = false,
+    embedded = false,
     onCallStart,
     onRequestLocation,
   } = props;
@@ -870,20 +871,28 @@ export default function VoiceCallFirebase(props: Props) {
                   : "📞 CHAMADA"}
             </Button>
           )}
-          <Card className="p-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">📞</div>
-              <div>
-                <h3 className="font-semibold">
-                  {role === "visitor" ? "Chamada" : "Atendimento"}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {role === "visitor"
-                    ? "Fale diretamente com o morador"
-                    : "Atenda chamadas dos visitantes"}
-                </p>
+          <div
+            className={
+              embedded
+                ? "space-y-4"
+                : "rounded-lg border bg-card p-4 text-card-foreground shadow-sm space-y-4"
+            }
+          >
+            {!embedded && (
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">📞</div>
+                <div>
+                  <h3 className="font-semibold">
+                    {role === "visitor" ? "Chamada" : "Atendimento"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {role === "visitor"
+                      ? "Fale diretamente com o morador"
+                      : "Atenda chamadas dos visitantes"}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {statusMessage && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
@@ -990,7 +999,7 @@ export default function VoiceCallFirebase(props: Props) {
                 )}
               </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
     </div>
