@@ -1,19 +1,3 @@
--- Align the database with the current normalized doorbell schema.
--- This project has no production users yet, so the old embedded address columns
--- can be removed without data backfill.
-
--- AlterTable
-ALTER TABLE "users" DROP COLUMN "city",
-DROP COLUMN "complement",
-DROP COLUMN "house_number",
-DROP COLUMN "neighborhood",
-DROP COLUMN "number",
-DROP COLUMN "state",
-DROP COLUMN "street",
-DROP COLUMN "zip_code",
-ADD COLUMN     "address_id" INTEGER NOT NULL,
-ALTER COLUMN "password" DROP DEFAULT;
-
 -- CreateTable
 CREATE TABLE "addresses" (
     "id" SERIAL NOT NULL,
@@ -32,6 +16,62 @@ CREATE TABLE "addresses" (
 
     CONSTRAINT "addresses_pkey" PRIMARY KEY ("id")
 );
+
+-- Backfill existing embedded user addresses before making the relation required.
+ALTER TABLE "users" ADD COLUMN "address_id" INTEGER;
+
+INSERT INTO "addresses" (
+    "street",
+    "number",
+    "complement",
+    "neighborhood",
+    "city",
+    "state",
+    "zip_code",
+    "created_at",
+    "updated_at"
+)
+SELECT DISTINCT
+    "street",
+    "number",
+    "complement",
+    "neighborhood",
+    "city",
+    "state",
+    "zip_code",
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+FROM "users";
+
+UPDATE "users" AS "u"
+SET "address_id" = "a"."id"
+FROM "addresses" AS "a"
+WHERE "u"."street" = "a"."street"
+  AND "u"."number" = "a"."number"
+  AND "u"."complement" IS NOT DISTINCT FROM "a"."complement"
+  AND "u"."neighborhood" = "a"."neighborhood"
+  AND "u"."city" = "a"."city"
+  AND "u"."state" = "a"."state"
+  AND "u"."zip_code" = "a"."zip_code";
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM "users" WHERE "address_id" IS NULL) THEN
+        RAISE EXCEPTION 'Failed to backfill users.address_id';
+    END IF;
+END $$;
+
+-- AlterTable
+ALTER TABLE "users" DROP COLUMN "city",
+DROP COLUMN "complement",
+DROP COLUMN "house_number",
+DROP COLUMN "neighborhood",
+DROP COLUMN "number",
+DROP COLUMN "state",
+DROP COLUMN "street",
+DROP COLUMN "zip_code",
+ALTER COLUMN "address_id" SET NOT NULL,
+ALTER COLUMN "password" DROP DEFAULT;
 
 -- CreateTable
 CREATE TABLE "doorbell_visits" (

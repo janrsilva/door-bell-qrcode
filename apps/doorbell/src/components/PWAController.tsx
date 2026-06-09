@@ -20,10 +20,6 @@ export default function PWAController() {
       );
     };
 
-    const activateWaitingWorker = (registration: ServiceWorkerRegistration) => {
-      registration.waiting?.postMessage({ type: "SKIP_WAITING" });
-    };
-
     const onControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
@@ -38,7 +34,6 @@ export default function PWAController() {
 
         if (registration.waiting) {
           notifyUpdate(registration);
-          activateWaitingWorker(registration);
         }
 
         registration.addEventListener("updatefound", () => {
@@ -51,7 +46,6 @@ export default function PWAController() {
               navigator.serviceWorker.controller
             ) {
               notifyUpdate(registration);
-              activateWaitingWorker(registration);
             }
           });
         });

@@ -848,6 +848,13 @@ export default function VoiceCallFirebase(props: Props) {
     if (params.get("action") !== "answer") return;
 
     autoAnswerVisitRef.current = visitData.uuid;
+    params.delete("action");
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+    );
     void handleAcceptCall(false);
   }, [
     role,

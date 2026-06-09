@@ -421,6 +421,11 @@ export function CallPageContent({ user }: CallPageContentProps) {
     setShowInstallHelp(true);
   };
 
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem("pwa-install-dismissed", Date.now().toString());
+  };
+
   const applyPWAUpdate = () => {
     const waitingWorker = pwaUpdateRegistration?.waiting;
 
@@ -430,11 +435,6 @@ export function CallPageContent({ user }: CallPageContentProps) {
     }
 
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
-  };
-
-  const dismissInstallBanner = () => {
-    setShowInstallBanner(false);
-    localStorage.setItem("pwa-install-dismissed", Date.now().toString());
   };
 
   // Voice call functions - DESABILITADO (usando voice-call-firebase agora)

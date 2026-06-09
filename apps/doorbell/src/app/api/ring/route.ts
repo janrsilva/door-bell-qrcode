@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
       if (subscriptions.length > 0) {
         const payload = JSON.stringify({
           title: "📞 Chamada da campainha",
-          body: "Toque para atender. Expanda para recusar.",
+          body: "Toque para abrir. Use ATENDER para atender.",
           visitId: visitUuid,
           timestamp: Date.now(),
           coords: coords,
@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
           sound: "/sounds/doorbell.mp3", // Som personalizado da campainha
           vibrate: [1000, 500, 1000, 500, 1000],
           requireInteraction: true,
-          defaultAction: "answer",
+          defaultAction: "open",
           actions: [
             { action: "answer", title: "ATENDER" },
             { action: "ignore", title: "RECUSAR" },

@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-202606082312";
+const CACHE_NAME = "doorbell-call-202606090029";
 const urlsToCache = [
   "/manifest.json",
   "/sounds/rington.mp3",
@@ -17,7 +17,6 @@ self.addEventListener("install", (event) => {
       return cache.addAll(urlsToCache);
     }),
   );
-  self.skipWaiting();
 });
 
 // Ativação do Service Worker
@@ -81,7 +80,7 @@ self.addEventListener("push", (event) => {
   }
 
   const title = data.title || "📞 Chamada da campainha";
-  const body = data.body || "Toque para atender. Expanda para recusar.";
+  const body = data.body || "Toque para abrir. Use ATENDER para atender.";
   const tag = data.tag || "doorbell-ring";
   const icon = data.icon || "/icons/icon-192x192.png";
   const badge = data.badge || "/icons/icon-72x72.png";
@@ -112,7 +111,7 @@ self.addEventListener("push", (event) => {
       timestamp: data.timestamp,
       type: notificationType,
       offer: data.offer, // Para chamadas de voz, incluir a oferta WebRTC
-      defaultAction: data.defaultAction || "answer",
+      defaultAction: data.defaultAction || "open",
     },
     actions: [
       {
@@ -182,11 +181,9 @@ async function openOrFocusResident(path) {
     includeUncontrolled: true,
   });
   const targetUrl = new URL(path, self.location.origin).href;
-  const residentClient =
-    clients.find((client) => new URL(client.url).pathname === "/resident") ||
-    clients.find(
-      (client) => new URL(client.url).origin === self.location.origin,
-    );
+  const residentClient = clients.find(
+    (client) => new URL(client.url).pathname === "/resident",
+  );
 
   if (residentClient) {
     if ("navigate" in residentClient) {
@@ -230,8 +227,7 @@ function getResidentCallPath(data, shouldAnswer) {
 
 async function handleNotificationAction(action, data) {
   const normalizedAction = action || "";
-  const effectiveAction =
-    normalizedAction || (data?.visitId ? data?.defaultAction || "answer" : "");
+  const effectiveAction = normalizedAction;
 
   if (effectiveAction === "ignore" || effectiveAction === "ignore_call") {
     console.log("Chamada ignorada:", data?.visitId, "Tipo:", data?.type);

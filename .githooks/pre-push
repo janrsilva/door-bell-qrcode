@@ -16,17 +16,4 @@ MSG
   exit 1
 fi
 
-node scripts/write-app-version.js
-after_status="$(git status --short)"
-
-if [ "$before_status" != "$after_status" ]; then
-  cat <<'MSG'
-
-O hook atualizou a versão do PWA para o minuto atual.
-Faça um commit dessa alteração e execute o push novamente.
-
-Isso garante que a versão exibida no resident/visitor seja a mesma versão enviada.
-
-MSG
-  exit 1
-fi
+node scripts/check-app-version.js
