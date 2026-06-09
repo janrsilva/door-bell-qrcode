@@ -73,10 +73,10 @@ pnpm vercel:link
 Quando a CLI perguntar:
 
 - Framework: `Next.js`
-- Root Directory: `./`
+- Root Directory: `apps/doorbell`
 - Install Command: `pnpm install --frozen-lockfile`
 - Build Command: `pnpm --filter doorbell build`
-- Output Directory: `apps/doorbell/.next`
+- Output Directory: `.next`
 
 Esses valores tambem estao em `vercel.json`.
 

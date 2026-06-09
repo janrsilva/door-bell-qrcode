@@ -4,5 +4,5 @@
   "buildCommand": "pnpm --filter doorbell build",
   "devCommand": "pnpm --filter doorbell dev",
   "framework": "nextjs",
-  "outputDirectory": "apps/doorbell/.next"
+  "outputDirectory": ".next"
 }

@@ -50,7 +50,7 @@ Configuracao esperada:
 
 - Install Command: `pnpm install --frozen-lockfile`
 - Build Command: `pnpm --filter doorbell build`
-- Output Directory: `apps/doorbell/.next`
+- Output Directory: `.next`
 
 ## Variaveis
 
