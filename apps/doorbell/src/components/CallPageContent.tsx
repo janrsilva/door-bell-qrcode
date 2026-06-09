@@ -15,6 +15,7 @@ import {
 // import { webRTCService } from "@/lib/services/webrtc-service"; // REMOVIDO
 import VoiceCallFirebase from "@/components/voice-call-firebase";
 import AvailableCalls from "@/components/available-calls";
+import AppVersion from "@/components/AppVersion";
 import { openDoorbellPrintPage } from "@/lib/doorbell-print";
 import { onValue, ref } from "firebase/database";
 import { getFirebaseRealtimeDatabase } from "@/lib/firebase-client";
@@ -1021,6 +1022,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <AppVersion />
       </div>
     </div>
   );

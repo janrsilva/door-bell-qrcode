@@ -20,6 +20,10 @@ export default function PWAController() {
       );
     };
 
+    const activateWaitingWorker = (registration: ServiceWorkerRegistration) => {
+      registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    };
+
     const onControllerChange = () => {
       if (refreshing) return;
       refreshing = true;
@@ -34,6 +38,7 @@ export default function PWAController() {
 
         if (registration.waiting) {
           notifyUpdate(registration);
+          activateWaitingWorker(registration);
         }
 
         registration.addEventListener("updatefound", () => {
@@ -46,6 +51,7 @@ export default function PWAController() {
               navigator.serviceWorker.controller
             ) {
               notifyUpdate(registration);
+              activateWaitingWorker(registration);
             }
           });
         });
@@ -61,6 +67,24 @@ export default function PWAController() {
     } else {
       window.addEventListener("load", registerServiceWorker, { once: true });
     }
+
+    const updateActiveRegistration = () => {
+      void navigator.serviceWorker
+        .getRegistration()
+        .then((registration) => registration?.update())
+        .catch((error) => {
+          console.error("Erro ao buscar atualização do Service Worker:", error);
+        });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        updateActiveRegistration();
+      }
+    };
+
+    window.addEventListener("focus", updateActiveRegistration);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     navigator.serviceWorker.addEventListener(
       "controllerchange",
       onControllerChange,
@@ -68,6 +92,8 @@ export default function PWAController() {
 
     return () => {
       window.removeEventListener("load", registerServiceWorker);
+      window.removeEventListener("focus", updateActiveRegistration);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       navigator.serviceWorker.removeEventListener(
         "controllerchange",
         onControllerChange,

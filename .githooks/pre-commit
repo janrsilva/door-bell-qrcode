@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+node scripts/write-app-version.js
+git add apps/doorbell/public/app-version.json apps/doorbell/public/sw.js

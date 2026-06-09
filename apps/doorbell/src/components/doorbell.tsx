@@ -14,6 +14,7 @@ import { getMaxDistance, MAX_DISTANCE } from "@/lib/utils/location-validation";
 import { isVisitExpired } from "@/lib/constants";
 import AddressBlock from "@/components/AdressBlock";
 import { LucideAlertTriangle, LucideMapPin } from "lucide-react";
+import AppVersion from "@/components/AppVersion";
 
 type Props = {
   visit: {
@@ -408,6 +409,7 @@ export default function DoorbellPageClient({ visit }: Props) {
             tentativa de contato.
           </p>
           <CountdownTimer createdAt={visit.createdAt.toISOString()} />
+          <AppVersion />
         </div>
       </Card>
     </main>

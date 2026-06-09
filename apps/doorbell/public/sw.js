@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-v9";
+const CACHE_NAME = "doorbell-call-202606082149";
 const urlsToCache = [
   "/manifest.json",
   "/sounds/rington.mp3",
@@ -17,6 +17,7 @@ self.addEventListener("install", (event) => {
       return cache.addAll(urlsToCache);
     }),
   );
+  self.skipWaiting();
 });
 
 // Ativação do Service Worker
@@ -45,6 +46,15 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+  if (
+    requestUrl.origin === self.location.origin &&
+    requestUrl.pathname === "/app-version.json"
+  ) {
     event.respondWith(fetch(event.request));
     return;
   }

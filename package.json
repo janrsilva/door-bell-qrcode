@@ -18,7 +18,9 @@
     "vercel:deploy:prebuilt:prod": "vercel deploy --prebuilt --prod",
     "vercel:deploy:prod": "vercel deploy --prod",
     "vercel:link": "vercel link",
-    "vercel:pull": "vercel env pull apps/doorbell/.env.local"
+    "vercel:pull": "vercel env pull apps/doorbell/.env.local",
+    "version:write": "node scripts/write-app-version.js",
+    "hooks:install": "git config core.hooksPath .githooks && chmod +x .githooks/pre-commit .githooks/pre-push"
   },
   "devDependencies": {
     "turbo": "^2.3.4"
