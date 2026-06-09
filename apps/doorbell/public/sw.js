@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-202606082149";
+const CACHE_NAME = "doorbell-call-202606082312";
 const urlsToCache = [
   "/manifest.json",
   "/sounds/rington.mp3",
@@ -80,8 +80,8 @@ self.addEventListener("push", (event) => {
     } catch {}
   }
 
-  const title = data.title || "Campainha Tocando!";
-  const body = data.body || "Alguém está na sua porta";
+  const title = data.title || "📞 Chamada da campainha";
+  const body = data.body || "Toque para atender. Expanda para recusar.";
   const tag = data.tag || "doorbell-ring";
   const icon = data.icon || "/icons/icon-192x192.png";
   const badge = data.badge || "/icons/icon-72x72.png";
@@ -104,22 +104,25 @@ self.addEventListener("push", (event) => {
     // IMPORTANTE: não existe suporte estável a `sound` aqui - som será padrão do sistema
     vibrate: [1000, 500, 1000, 500, 1000, 500], // Vibração como campainha
     requireInteraction: true, // Não desaparece sozinha
+    renotify: true,
+    timestamp: data.timestamp || Date.now(),
     data: {
       suggestedSound, // Passa sugestão de som para o cliente
       visitId: data.visitId,
       timestamp: data.timestamp,
       type: notificationType,
       offer: data.offer, // Para chamadas de voz, incluir a oferta WebRTC
+      defaultAction: data.defaultAction || "answer",
     },
     actions: [
       {
         action: "answer",
-        title: "📞 Atender",
+        title: "ATENDER",
         icon: "/icons/icon-96x96.png",
       },
       {
         action: "ignore",
-        title: "🔇 Ignorar",
+        title: "RECUSAR",
         icon: "/icons/icon-96x96.png",
       },
     ],
@@ -179,9 +182,11 @@ async function openOrFocusResident(path) {
     includeUncontrolled: true,
   });
   const targetUrl = new URL(path, self.location.origin).href;
-  const residentClient = clients.find((client) =>
-    new URL(client.url).pathname === "/resident",
-  );
+  const residentClient =
+    clients.find((client) => new URL(client.url).pathname === "/resident") ||
+    clients.find(
+      (client) => new URL(client.url).origin === self.location.origin,
+    );
 
   if (residentClient) {
     if ("navigate" in residentClient) {
@@ -190,7 +195,8 @@ async function openOrFocusResident(path) {
     return residentClient.focus();
   }
 
-  return self.clients.openWindow(path);
+  const openedClient = await self.clients.openWindow(targetUrl);
+  return openedClient?.focus ? openedClient.focus() : openedClient;
 }
 
 async function notifyWindowClients(message) {
@@ -211,47 +217,48 @@ async function ignoreVisit(visitId) {
   ]);
 }
 
+function getResidentCallPath(data, shouldAnswer) {
+  if (!data?.visitId) return "/resident";
+
+  const params = new URLSearchParams({ call: data.visitId });
+  if (shouldAnswer) {
+    params.set("action", "answer");
+  }
+
+  return `/resident?${params.toString()}`;
+}
+
+async function handleNotificationAction(action, data) {
+  const normalizedAction = action || "";
+  const effectiveAction =
+    normalizedAction || (data?.visitId ? data?.defaultAction || "answer" : "");
+
+  if (effectiveAction === "ignore" || effectiveAction === "ignore_call") {
+    console.log("Chamada ignorada:", data?.visitId, "Tipo:", data?.type);
+    await ignoreVisit(data?.visitId);
+    return { action: effectiveAction, handled: "ignore" };
+  }
+
+  const shouldAnswer =
+    effectiveAction === "answer" || effectiveAction === "answer_call";
+  const residentPath = getResidentCallPath(data, shouldAnswer);
+  await openOrFocusResident(residentPath);
+
+  return {
+    action: effectiveAction,
+    handled: shouldAnswer ? "answer" : "open",
+    path: residentPath,
+  };
+}
+
 // AÇÕES DA NOTIFICAÇÃO
 self.addEventListener("notificationclick", (event) => {
   console.log("Clique na notificação:", event.action);
   event.notification.close();
 
-  const action = event.action;
-  const data = event.notification.data;
-
-  if (action === "answer" || action === "answer_call") {
-    // Abrir app para atender
-    if (data.type === "voice_call") {
-      // Para chamadas de voz, passar dados de sinalização WebRTC
-      event.waitUntil(
-        openOrFocusResident(
-          `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
-        ),
-      );
-    } else {
-      // Campainha normal
-      event.waitUntil(
-        openOrFocusResident(`/resident?call=${data.visitId}&action=answer`),
-      );
-    }
-  } else if (action === "ignore" || action === "ignore_call") {
-    console.log("Chamada ignorada:", data.visitId, "Tipo:", data.type);
-    event.waitUntil(ignoreVisit(data.visitId));
-  } else {
-    // Clique na notificação principal - se for chamada de voz, abrir com dados
-    if (data.type === "voice_call") {
-      event.waitUntil(
-        openOrFocusResident(
-          `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
-        ),
-      );
-    } else {
-      const residentUrl = data.visitId
-        ? `/resident?call=${data.visitId}`
-        : "/resident";
-      event.waitUntil(openOrFocusResident(residentUrl));
-    }
-  }
+  event.waitUntil(
+    handleNotificationAction(event.action, event.notification.data),
+  );
 });
 
 // MANTER SERVICE WORKER ATIVO
@@ -262,6 +269,27 @@ self.addEventListener("message", (event) => {
 
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+
+  if (event.data && event.data.type === "TEST_NOTIFICATION_CLICK") {
+    const responsePort = event.ports && event.ports[0];
+    const testPromise = handleNotificationAction(
+      event.data.action,
+      event.data.data || {},
+    )
+      .then((result) => {
+        responsePort?.postMessage({ ok: true, result });
+      })
+      .catch((error) => {
+        responsePort?.postMessage({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    if (event.waitUntil) {
+      event.waitUntil(testPromise);
+    }
   }
 });
 

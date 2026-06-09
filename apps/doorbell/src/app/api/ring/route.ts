@@ -175,8 +175,8 @@ export async function POST(req: NextRequest) {
 
       if (subscriptions.length > 0) {
         const payload = JSON.stringify({
-          title: "🔔 Campainha Tocando!",
-          body: "Alguém está na sua porta",
+          title: "📞 Chamada da campainha",
+          body: "Toque para atender. Expanda para recusar.",
           visitId: visitUuid,
           timestamp: Date.now(),
           coords: coords,
@@ -185,9 +185,10 @@ export async function POST(req: NextRequest) {
           sound: "/sounds/doorbell.mp3", // Som personalizado da campainha
           vibrate: [1000, 500, 1000, 500, 1000],
           requireInteraction: true,
+          defaultAction: "answer",
           actions: [
-            { action: "answer", title: "📞 Atender" },
-            { action: "ignore", title: "🔇 Ignorar" },
+            { action: "answer", title: "ATENDER" },
+            { action: "ignore", title: "RECUSAR" },
           ],
         });
 
