@@ -367,6 +367,10 @@ export default function VoiceCallFirebase(props: Props) {
 
   // Listen to visit node for offer/answer updates
   useEffect(() => {
+    if (role !== "visitor") {
+      return;
+    }
+
     if (!startVisitUuid) {
       setVisitData(null);
       return;
