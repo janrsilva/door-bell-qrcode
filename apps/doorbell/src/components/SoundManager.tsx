@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getSoundConfig, playSound, unlockAudio } from "@/lib/sound";
+import { getSoundConfig, playSound, stopSound, unlockAudio } from "@/lib/sound";
 
 const MAX_PUSH_SOUND_AGE_MS = 60 * 1000;
 
@@ -35,6 +35,8 @@ export function SoundManager() {
           // Toca o som sugerido ou o configurado
           playSound(data.sound);
         }
+      } else if (data.type === "IGNORE_RING") {
+        stopSound();
       }
     };
 

@@ -54,7 +54,7 @@ export function withPermissions<P extends object>(
 
     useEffect(() => {
       if (status === "unauthenticated") {
-        const currentUrl = window.location.pathname;
+        const currentUrl = `${window.location.pathname}${window.location.search}`;
         const loginUrl = `${redirectTo}?callbackUrl=${encodeURIComponent(currentUrl)}`;
         router.push(loginUrl as any);
       }

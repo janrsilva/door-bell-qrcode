@@ -13,7 +13,7 @@ export default function CallPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      const currentUrl = window.location.pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
       const loginUrl = `/auth/login?callbackUrl=${encodeURIComponent(currentUrl)}`;
       router.push(loginUrl as any);
     }

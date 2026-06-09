@@ -176,6 +176,7 @@ export default function VoiceCallFirebase(props: Props) {
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const activeVisitIdRef = useRef<string | null>(null);
   const activeOfferRef = useRef<string | null>(null);
+  const autoAnswerVisitRef = useRef<string | null>(null);
 
   const postIceCandidate = useCallback(
     async (visitId: string, candidate: RTCIceCandidate) => {
@@ -814,6 +815,25 @@ export default function VoiceCallFirebase(props: Props) {
     postAnswer,
     setError,
     visitData?.uuid,
+  ]);
+
+  useEffect(() => {
+    if (role !== "resident" || !incomingOffer || !visitData?.uuid) return;
+    if (isBusy || callState === "connected") return;
+    if (autoAnswerVisitRef.current === visitData.uuid) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") !== "answer") return;
+
+    autoAnswerVisitRef.current = visitData.uuid;
+    void handleAcceptCall(false);
+  }, [
+    role,
+    incomingOffer,
+    visitData?.uuid,
+    isBusy,
+    callState,
+    handleAcceptCall,
   ]);
 
   const handleRejectCall = useCallback(async () => {

@@ -245,6 +245,13 @@ export function CallPageContent({ user }: CallPageContentProps) {
         } else if (signal.type === "candidate") {
           // ICE candidate recebido - repassar para WebRTC service
         }
+      } else if (event.data && event.data.type === "IGNORE_RING") {
+        stopSound();
+        setLatestRing((current) =>
+          !event.data.visitId || current?.visitUuid === event.data.visitId
+            ? null
+            : current,
+        );
       }
     };
 

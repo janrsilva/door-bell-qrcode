@@ -25,7 +25,7 @@ export function withAuth<P extends object>(
     useEffect(() => {
       // Se não está carregando e não tem sessão, redirecionar
       if (status === "unauthenticated") {
-        const currentUrl = window.location.pathname;
+        const currentUrl = `${window.location.pathname}${window.location.search}`;
         const loginUrl = `${redirectTo}?callbackUrl=${encodeURIComponent(currentUrl)}`;
         router.push(loginUrl as any);
       }

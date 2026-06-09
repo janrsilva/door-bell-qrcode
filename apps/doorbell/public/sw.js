@@ -1,4 +1,4 @@
-const CACHE_NAME = "doorbell-call-v8";
+const CACHE_NAME = "doorbell-call-v9";
 const urlsToCache = [
   "/manifest.json",
   "/sounds/rington.mp3",
@@ -163,6 +163,44 @@ self.addEventListener("push", (event) => {
   event.waitUntil(Promise.all([showPromise, notifyClients]));
 });
 
+async function openOrFocusResident(path) {
+  const clients = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  const targetUrl = new URL(path, self.location.origin).href;
+  const residentClient = clients.find((client) =>
+    new URL(client.url).pathname === "/resident",
+  );
+
+  if (residentClient) {
+    if ("navigate" in residentClient) {
+      await residentClient.navigate(targetUrl);
+    }
+    return residentClient.focus();
+  }
+
+  return self.clients.openWindow(path);
+}
+
+async function notifyWindowClients(message) {
+  const clients = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+
+  clients.forEach((client) => client.postMessage(message));
+}
+
+async function ignoreVisit(visitId) {
+  if (!visitId) return;
+
+  await Promise.allSettled([
+    fetch(`/api/doorbell/${visitId}/end`, { method: "POST" }),
+    notifyWindowClients({ type: "IGNORE_RING", visitId }),
+  ]);
+}
+
 // AÇÕES DA NOTIFICAÇÃO
 self.addEventListener("notificationclick", (event) => {
   console.log("Clique na notificação:", event.action);
@@ -176,24 +214,24 @@ self.addEventListener("notificationclick", (event) => {
     if (data.type === "voice_call") {
       // Para chamadas de voz, passar dados de sinalização WebRTC
       event.waitUntil(
-        self.clients.openWindow(
+        openOrFocusResident(
           `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
         ),
       );
     } else {
       // Campainha normal
       event.waitUntil(
-        self.clients.openWindow(`/resident?call=${data.visitId}&action=answer`),
+        openOrFocusResident(`/resident?call=${data.visitId}&action=answer`),
       );
     }
   } else if (action === "ignore" || action === "ignore_call") {
-    // Log de chamada ignorada
     console.log("Chamada ignorada:", data.visitId, "Tipo:", data.type);
+    event.waitUntil(ignoreVisit(data.visitId));
   } else {
     // Clique na notificação principal - se for chamada de voz, abrir com dados
     if (data.type === "voice_call") {
       event.waitUntil(
-        self.clients.openWindow(
+        openOrFocusResident(
           `/resident?voiceCall=${data.visitId}&webrtc=${encodeURIComponent(JSON.stringify(data.webrtc))}`,
         ),
       );
@@ -201,7 +239,7 @@ self.addEventListener("notificationclick", (event) => {
       const residentUrl = data.visitId
         ? `/resident?call=${data.visitId}`
         : "/resident";
-      event.waitUntil(self.clients.openWindow(residentUrl));
+      event.waitUntil(openOrFocusResident(residentUrl));
     }
   }
 });
