@@ -150,6 +150,7 @@ interface Props {
   disabled?: boolean;
   embedded?: boolean;
   onCallStart?: () => Promise<void>;
+  onCallEnded?: (visitId?: string) => void;
   onRequestLocation?: () => Promise<{
     success: boolean;
     coords?: Coordinates;
@@ -168,6 +169,7 @@ export default function VoiceCallFirebase(props: Props) {
     disabled = false,
     embedded = false,
     onCallStart,
+    onCallEnded,
     onRequestLocation,
   } = props;
 
@@ -251,6 +253,8 @@ export default function VoiceCallFirebase(props: Props) {
 
   const cleanupCall = useCallback(
     async (updateFirebase: boolean, message: string) => {
+      const visitId = role === "visitor" ? startVisitUuid : visitData?.uuid;
+
       setStatusMessage(message);
       setIsWaitingForAnswer(false);
 
@@ -265,15 +269,15 @@ export default function VoiceCallFirebase(props: Props) {
       // Resetar WebRTC e estado da chamada
       reset();
       setCallState("idle");
+      setVisitData(null);
+      onCallEnded?.(visitId);
 
       if (updateFirebase) {
-        // Determinar o visitId correto baseado no role
-        const visitId = role === "visitor" ? startVisitUuid : visitData?.uuid;
-
         if (visitId) {
           try {
             const response = await fetch(`/api/doorbell/${visitId}/end`, {
               method: "POST",
+              keepalive: true,
             });
 
             if (!response.ok) {
@@ -289,12 +293,8 @@ export default function VoiceCallFirebase(props: Props) {
           );
         }
       }
-
-      if (role === "resident") {
-        setVisitData(null);
-      }
     },
-    [reset, role, startVisitUuid, visitData?.uuid],
+    [onCallEnded, reset, role, startVisitUuid, visitData?.uuid],
   );
 
   const handleEndCall = useCallback(async () => {
@@ -351,12 +351,12 @@ export default function VoiceCallFirebase(props: Props) {
       return;
     }
 
-    // Só processar se for visitor e estiver esperando answer
-    if (role === "visitor" && !isWaitingForAnswer) {
-      return;
-    }
+    const isTrackedActiveVisit =
+      role === "visitor"
+        ? activeVisitIdRef.current === startVisitUuid
+        : activeVisitIdRef.current === visitData?.uuid;
 
-    if (status === "ended") {
+    if (status === "ended" && isTrackedActiveVisit) {
       if (!endedProcessedRef.current) {
         endedProcessedRef.current = true;
         void cleanupCall(false, "Chamada encerrada pelo outro lado");
@@ -364,7 +364,7 @@ export default function VoiceCallFirebase(props: Props) {
     } else {
       endedProcessedRef.current = false;
     }
-  }, [visitData?.status, cleanupCall, role, isWaitingForAnswer]);
+  }, [visitData?.status, visitData?.uuid, cleanupCall, role, startVisitUuid]);
 
   // Listen to visit node for offer/answer updates
   useEffect(() => {
@@ -382,6 +382,21 @@ export default function VoiceCallFirebase(props: Props) {
 
     const unsubscribe = onValue(onCallVisitRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as VisitSnapshot | null;
+      const hasActiveVisitorCall =
+        activeVisitIdRef.current === startVisitUuid &&
+        (isWaitingForAnswer ||
+          callState === "ringing" ||
+          callState === "connected");
+
+      if (!data) {
+        if (hasActiveVisitorCall) {
+          void cleanupCall(false, "Chamada encerrada pelo outro lado");
+        } else {
+          setVisitData(null);
+        }
+
+        return;
+      }
 
       // Para visitor, só atualizar visitData se não estiver no meio de uma chamada
       if (
@@ -396,7 +411,14 @@ export default function VoiceCallFirebase(props: Props) {
     });
 
     return () => unsubscribe();
-  }, [startVisitUuid, addressUuid, role, callState, isWaitingForAnswer]);
+  }, [
+    startVisitUuid,
+    addressUuid,
+    role,
+    callState,
+    isWaitingForAnswer,
+    cleanupCall,
+  ]);
 
   // Monitor visit status for visitor to detect when call is ended
   useEffect(() => {

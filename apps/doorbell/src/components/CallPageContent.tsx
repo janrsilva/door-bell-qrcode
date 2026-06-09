@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -108,6 +108,18 @@ export function CallPageContent({ user }: CallPageContentProps) {
     DEFAULT_PERMISSION_STATUS,
   );
   const latestRingRef = useRef<string | null>(null);
+
+  const handleCallEnded = useCallback((visitId?: string) => {
+    setLatestRing((currentRing) => {
+      if (!currentRing || (visitId && currentRing.visitUuid !== visitId)) {
+        return currentRing;
+      }
+
+      latestRingRef.current = null;
+      return null;
+    });
+    stopSound();
+  }, []);
 
   // Voice call states
   const [incomingVoiceCall, setIncomingVoiceCall] = useState<{
@@ -917,6 +929,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
                 visitorCoords={null}
                 distance={null}
                 embedded
+                onCallEnded={handleCallEnded}
               />
             </div>
           </Card>
@@ -935,6 +948,7 @@ export function CallPageContent({ user }: CallPageContentProps) {
             addressUuid={user.address.addressUuid}
             visitorCoords={null}
             distance={null}
+            onCallEnded={handleCallEnded}
           />
         )}
 

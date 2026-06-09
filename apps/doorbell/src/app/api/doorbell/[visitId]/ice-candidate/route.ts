@@ -51,10 +51,8 @@ export async function POST(
     const onCallVisitRef = db.ref(
       `addresses/${visit.address.addressUuid}/onCallVisit`,
     );
-    const addressVisitCandidatesRef = addressRef
-      .child(`visits/${visitId}`)
-      .child("iceCandidates");
-    const onCallVisitCandidatesRef = onCallVisitRef.child("iceCandidates");
+    const addressVisitRef = addressRef.child(`visits/${visitId}`);
+    const addressVisitCandidatesRef = addressVisitRef.child("iceCandidates");
 
     const payload = {
       candidate: body.candidate,
@@ -64,8 +62,24 @@ export async function POST(
       createdAt: now,
     };
 
-    await addressVisitCandidatesRef.push(payload);
-    await onCallVisitCandidatesRef.push(payload);
+    const [visitSnapshot, onCallVisitSnapshot] = await Promise.all([
+      addressVisitRef.get(),
+      onCallVisitRef.get(),
+    ]);
+    const visitData = visitSnapshot.val();
+    const onCallVisit = onCallVisitSnapshot.val();
+
+    if (visitData?.status === "ended" || onCallVisit?.status === "ended") {
+      return NextResponse.json({ success: true, ignored: true });
+    }
+
+    const writes = [addressVisitCandidatesRef.push(payload)];
+
+    if (onCallVisit?.uuid === visitId) {
+      writes.push(onCallVisitRef.child("iceCandidates").push(payload));
+    }
+
+    await Promise.all(writes);
 
     return NextResponse.json({ success: true });
   } catch (error) {

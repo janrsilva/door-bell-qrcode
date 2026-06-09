@@ -28,20 +28,15 @@ export async function POST(
     const app = getFirebaseAdminApp();
     const db = getDatabase(app);
 
-    const addressVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/visits/${visitId}`,
-    );
-    const onCallVisitRef = db.ref(
-      `addresses/${visit.address.addressUuid}/onCallVisit`,
-    );
+    const addressRef = db.ref(`addresses/${visit.address.addressUuid}`);
 
-    await Promise.all([
-      addressVisitRef.set({
-        status: "ended",
-        updatedAt: now,
-      }),
-      onCallVisitRef.set(null),
-    ]);
+    await addressRef.update({
+      [`visits/${visitId}/status`]: "ended",
+      [`visits/${visitId}/updatedAt`]: now,
+      [`visits/${visitId}/endedAt`]: now,
+      [`visits/${visitId}/iceCandidates`]: null,
+      onCallVisit: null,
+    });
 
     return NextResponse.json({
       success: true,

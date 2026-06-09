@@ -56,7 +56,11 @@ export default function AvailableCalls({ addressUuid, onCallAccepted }: Props) {
       }
 
       setCalls(available);
-      setActiveVisitId(onCallVisit?.uuid ?? null);
+      setActiveVisitId(
+        onCallVisit?.uuid && onCallVisit.status !== "ended"
+          ? onCallVisit.uuid
+          : null,
+      );
     });
 
     return () => unsubscribe();
