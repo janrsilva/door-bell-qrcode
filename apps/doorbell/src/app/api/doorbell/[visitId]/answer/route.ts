@@ -12,7 +12,7 @@ export async function POST(
     return NextResponse.json({ error: "visitId is required" }, { status: 400 });
   }
 
-  let body: { sdp?: any };
+  let body: { sdp?: any; residentVideoEnabled?: boolean };
   try {
     body = await req.json();
   } catch (error) {
@@ -54,6 +54,11 @@ export async function POST(
       webRtcAnswer: {
         sdp: body.sdp,
         createdAt: now,
+        residentVideoEnabled: body.residentVideoEnabled === true,
+      },
+      residentMedia: {
+        videoEnabled: body.residentVideoEnabled === true,
+        updatedAt: now,
       },
       status: "answered",
       updatedAt: now,

@@ -8,6 +8,22 @@ export function useAutoSubscription() {
   const [isConfigured, setIsConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const handleSubscriptionError = useCallback(
+    (message: string) => {
+      const sessionKey = session?.user?.id
+        ? `subscription_configured_${session.user.id}`
+        : null;
+
+      if (sessionKey) {
+        sessionStorage.removeItem(sessionKey);
+      }
+
+      setIsConfigured(false);
+      setError(message);
+    },
+    [session?.user?.id],
+  );
+
   const configure = useCallback(
     async ({ requestPermission = false } = {}) => {
       // Só executar se usuário estiver logado E ainda não executou nesta sessão
@@ -48,9 +64,10 @@ export function useAutoSubscription() {
             await ApiService.subscribeNotifications(existingSubscription);
 
           if (!result.ok) {
-            throw new Error(
+            handleSubscriptionError(
               result.error || "Erro ao salvar subscription existente",
             );
+            return;
           }
 
           // Marcar como configurado nesta sessão
@@ -97,7 +114,10 @@ export function useAutoSubscription() {
         const result = await ApiService.subscribeNotifications(subscription);
 
         if (!result.ok) {
-          throw new Error(result.error || "Erro ao salvar subscription");
+          handleSubscriptionError(
+            result.error || "Erro ao salvar subscription",
+          );
+          return;
         }
 
         // Marcar como configurado nesta sessão
@@ -112,7 +132,7 @@ export function useAutoSubscription() {
         setIsConfiguring(false);
       }
     },
-    [session],
+    [session, handleSubscriptionError],
   );
 
   useEffect(() => {

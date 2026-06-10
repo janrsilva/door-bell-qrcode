@@ -17,7 +17,12 @@ import {
 interface VisitSnapshot {
   uuid?: string;
   webRtcOffer?: { sdp: string; createdAt: string } | null;
-  webRtcAnswer?: { sdp: string; createdAt: string } | null;
+  webRtcAnswer?: {
+    sdp: string;
+    createdAt: string;
+    residentVideoEnabled?: boolean;
+  } | null;
+  residentMedia?: { videoEnabled?: boolean; updatedAt?: string } | null;
   visitorPreview?: { dataUrl: string; createdAt: string } | null;
   status?: "offer_created" | "answered" | "ended" | string;
   createdAt?: string;
@@ -660,7 +665,7 @@ export default function VoiceCallFirebase(props: Props) {
   );
 
   const postAnswer = useCallback(
-    async (answer: RTCSessionDescriptionInit) => {
+    async (answer: RTCSessionDescriptionInit, residentVideoEnabled: boolean) => {
       const id = ensureVisitId();
       try {
         setIsBusy(true);
@@ -670,7 +675,10 @@ export default function VoiceCallFirebase(props: Props) {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ sdp: answer.sdp }),
+          body: JSON.stringify({
+            sdp: answer.sdp,
+            residentVideoEnabled,
+          }),
         });
 
         const payload = await response.json().catch(() => ({}));
@@ -846,7 +854,7 @@ export default function VoiceCallFirebase(props: Props) {
         }),
       );
 
-      const sent = await postAnswer(answer);
+      const sent = await postAnswer(answer, withVideo);
 
       if (sent) {
         setCallState("connected");
@@ -904,6 +912,51 @@ export default function VoiceCallFirebase(props: Props) {
     await cleanupCall(true, "Chamada recusada");
   }, [role, visitData?.uuid, cleanupCall]);
 
+  const updateResidentMediaState = useCallback(
+    async (residentVideoEnabled: boolean) => {
+      if (role !== "resident" || !visitData?.uuid) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/doorbell/${visitData.uuid}/media-state`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ residentVideoEnabled }),
+          },
+        );
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          console.error("Falha ao atualizar mídia do residente", payload);
+        }
+      } catch (error) {
+        console.error("Falha ao atualizar mídia do residente", error);
+      }
+    },
+    [role, visitData?.uuid],
+  );
+
+  const handleToggleVideo = useCallback(async () => {
+    const nextVideoEnabled = !localVideoEnabled;
+
+    await toggleVideo();
+
+    if (role === "resident" && callState === "connected") {
+      await updateResidentMediaState(nextVideoEnabled);
+    }
+  }, [
+    callState,
+    localVideoEnabled,
+    role,
+    toggleVideo,
+    updateResidentMediaState,
+  ]);
+
   const callAllowed =
     !disabled &&
     (role === "visitor"
@@ -919,6 +972,11 @@ export default function VoiceCallFirebase(props: Props) {
   const renderStreams = hasLocalStream || hasRemoteStream;
   const showFullscreenVideo =
     isActiveVisitorCall || (renderStreams && callState !== "idle");
+  const residentVideoAvailable =
+    visitData?.residentMedia?.videoEnabled ??
+    visitData?.webRtcAnswer?.residentVideoEnabled;
+  const remoteVideoAvailable =
+    role === "visitor" ? residentVideoAvailable !== false : true;
 
   return (
     <div className="relative">
@@ -928,11 +986,13 @@ export default function VoiceCallFirebase(props: Props) {
           remoteStream={remoteStream}
           localVideoEnabled={localVideoEnabled}
           remoteVideoEnabled={remoteVideoEnabled}
+          remoteVideoAvailable={remoteVideoAvailable}
           isMuted={isMuted}
           role={role}
           callState={callState}
+          connectionState={connectionState}
           onToggleMute={toggleMute}
-          onToggleVideo={toggleVideo}
+          onToggleVideo={handleToggleVideo}
           onEndCall={handleEndCall}
         />
       ) : (

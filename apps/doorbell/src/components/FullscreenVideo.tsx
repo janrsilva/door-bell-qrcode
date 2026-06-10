@@ -4,11 +4,13 @@ import { cn } from "@/lib/utils";
 import {
   LucideMic,
   LucideMicOff,
+  LucidePhone,
+  LucideVolume2,
   LucideX,
   LucideVideo,
   LucideVideoOff,
 } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { AddressData, useAddress } from "@/contexts/AddressContext";
 import AddressBlock from "./AdressBlock";
 
@@ -17,9 +19,11 @@ interface FullscreenVideoProps {
   remoteStream: MediaStream | null;
   localVideoEnabled: boolean;
   remoteVideoEnabled: boolean;
+  remoteVideoAvailable?: boolean;
   isMuted: boolean;
   role: "visitor" | "resident";
   callState: string;
+  connectionState?: string;
   onToggleMute?: () => void;
   onToggleVideo?: () => void;
   onEndCall?: () => void;
@@ -30,9 +34,11 @@ export function FullscreenVideo({
   remoteStream,
   localVideoEnabled,
   remoteVideoEnabled,
+  remoteVideoAvailable = remoteVideoEnabled,
   isMuted,
   role,
   callState,
+  connectionState = "unset",
   onToggleMute,
   onToggleVideo,
   onEndCall,
@@ -42,14 +48,43 @@ export function FullscreenVideo({
   const localVideoCornerRef = useRef<HTMLVideoElement>(null);
   const remoteVideoCornerRef = useRef<HTMLVideoElement>(null);
   const { addressData } = useAddress();
+  const [showVolumeHint, setShowVolumeHint] = useState(false);
 
-  // Lógica mais robusta: sempre tentar mostrar algo
-  const showRemoteVideo = remoteStream && callState === "connected";
-  const showLocalVideo = !showRemoteVideo && localStream;
-
-  // Fallback: se conectado mas não há vídeo remoto, mostrar local
-  const showFallbackLocal =
-    callState === "connected" && !remoteStream && localStream;
+  const isConnected =
+    callState === "connected" || connectionState === "connected";
+  const isCallActive =
+    callState === "calling" ||
+    callState === "ringing" ||
+    callState === "connected";
+  const hasRemoteVideo =
+    Boolean(remoteStream?.getVideoTracks().length) && remoteVideoEnabled;
+  const hasLocalVideo =
+    Boolean(localStream?.getVideoTracks().length) && localVideoEnabled;
+  const showRemoteVideo =
+    isConnected &&
+    remoteVideoAvailable &&
+    Boolean(remoteStream) &&
+    hasRemoteVideo;
+  const showLocalMain = !showRemoteVideo && Boolean(localStream) && hasLocalVideo;
+  const showVoiceCall = isConnected && !showRemoteVideo;
+  const showVideoSurface = showRemoteVideo || showLocalMain;
+  const showAttentionStatus = showVideoSurface && !showRemoteVideo;
+  const statusTitle = !isConnected
+    ? role === "visitor"
+      ? "Conectando chamada..."
+      : "Conectando vídeo do visitante..."
+    : showRemoteVideo
+      ? "Chamada conectada"
+      : role === "visitor"
+        ? "Morador atendeu sem vídeo"
+        : "Chamada conectada sem vídeo";
+  const statusDescription = !isConnected
+    ? "Estabelecendo áudio e vídeo. Isso pode levar alguns segundos."
+    : showRemoteVideo
+      ? "Áudio e vídeo conectados."
+      : role === "visitor"
+        ? "Você está em chamada de voz. Sua câmera continua ativa para você."
+        : "Áudio conectado. Aguardando vídeo remoto ficar disponível.";
 
   // Configurar stream local
   useEffect(() => {
@@ -62,6 +97,7 @@ export function FullscreenVideo({
   useEffect(() => {
     if (remoteStream && remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.volume = 1;
     }
   }, [remoteStream]);
 
@@ -73,6 +109,7 @@ export function FullscreenVideo({
       !remoteVideoRef.current.srcObject
     ) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.volume = 1;
     }
   }, [remoteStream, showRemoteVideo]);
 
@@ -80,6 +117,7 @@ export function FullscreenVideo({
   useEffect(() => {
     if (showRemoteVideo && remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.volume = 1;
     }
   }, [showRemoteVideo, remoteStream]);
 
@@ -94,8 +132,23 @@ export function FullscreenVideo({
   useEffect(() => {
     if (remoteStream && remoteVideoCornerRef.current) {
       remoteVideoCornerRef.current.srcObject = remoteStream;
+      remoteVideoCornerRef.current.volume = 1;
     }
   }, [remoteStream]);
+
+  useEffect(() => {
+    if (!isCallActive) {
+      setShowVolumeHint(false);
+      return;
+    }
+
+    setShowVolumeHint(true);
+    const timeoutId = window.setTimeout(() => {
+      setShowVolumeHint(false);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isCallActive]);
 
   // Forçar configuração do vídeo local no canto quando o elemento é renderizado
   useEffect(() => {
@@ -130,7 +183,7 @@ export function FullscreenVideo({
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-black overflow-hidden z-50">
+    <div className="fixed inset-0 w-full h-full bg-zinc-950 overflow-hidden z-50">
       {addressData && (
         <div className="absolute top-2 left-2 right-2 z-30">
           <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white">
@@ -141,7 +194,8 @@ export function FullscreenVideo({
         </div>
       )}
 
-      {/* Vídeo em tela cheia - sempre mostrar o que existe */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1f2937_0,#09090b_48%,#000_100%)]" />
+
       {showRemoteVideo && (
         <div className="absolute inset-0 w-full h-full">
           <video
@@ -151,19 +205,10 @@ export function FullscreenVideo({
             className="absolute inset-0 w-full h-full object-cover"
             style={{ backgroundColor: "black" }}
           />
-          {/* Overlay para vídeo remoto desligado */}
-          {!remoteVideoEnabled && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 pointer-events-none">
-              <div className="text-center text-white">
-                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium">Vídeo Desligado</p>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {showLocalVideo && (
+      {showLocalMain && (
         <div className="absolute inset-0 w-full h-full">
           <video
             ref={localVideoRef}
@@ -173,56 +218,34 @@ export function FullscreenVideo({
             className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
             style={{ backgroundColor: "black" }}
           />
-          {/* Overlay para vídeo local desligado */}
-          {!localVideoEnabled && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-500/80 z-10 pointer-events-none">
-              <div className="text-center text-white">
-                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium">Vídeo Desligado</p>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Fallback: mostrar vídeo local se conectado mas sem vídeo remoto */}
-      {showFallbackLocal && (
-        <div className="absolute inset-0 w-full h-full">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-            style={{ backgroundColor: "black" }}
-          />
-          {/* Overlay para vídeo local desligado no fallback */}
-          {!localVideoEnabled && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-500/80 z-10 pointer-events-none">
-              <div className="text-center text-white">
-                <LucideVideoOff className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium">Vídeo Desligado</p>
-              </div>
+      {!showRemoteVideo && !showLocalMain && (
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-white">
+          <div className="w-full max-w-sm text-center">
+            <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
+              {showVoiceCall ? (
+                <LucidePhone className="h-11 w-11 text-white" />
+              ) : (
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              )}
             </div>
-          )}
-        </div>
-      )}
-
-      {!showRemoteVideo && !showLocalVideo && !showFallbackLocal && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black">
-          <div className="text-center text-white">
-            <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-3" />
-            <p className="text-lg font-medium">
-              {role === "visitor" ? "Chamando..." : "Preparando chamada..."}
+            <p className="text-2xl font-semibold">{statusTitle}</p>
+            <p className="mt-3 text-sm leading-6 text-white/70">
+              {statusDescription}
             </p>
+            <div className="mt-5 inline-flex items-center rounded-full border border-white/15 bg-black/30 px-4 py-2 text-xs text-white/75">
+              {connectionState === "connected"
+                ? "Áudio conectado"
+                : "Negociando conexão segura"}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Vídeo menor no canto esquerdo inferior - ratio 9:16 para mobile */}
       <div className="absolute bottom-4 left-4 w-20 h-36 bg-black rounded-lg overflow-hidden shadow-lg border-2 border-white/20 z-15">
-        {/* Mostrar o vídeo oposto ao que está em tela cheia */}
-        {showRemoteVideo && localStream && (
+        {showRemoteVideo && localStream && hasLocalVideo && (
           <video
             ref={localVideoCornerRef}
             autoPlay
@@ -232,7 +255,7 @@ export function FullscreenVideo({
           />
         )}
 
-        {showLocalVideo && remoteStream && (
+        {showLocalMain && remoteStream && hasRemoteVideo && (
           <video
             ref={remoteVideoCornerRef}
             autoPlay
@@ -240,9 +263,52 @@ export function FullscreenVideo({
             className="w-full h-full object-cover"
           />
         )}
+        {((showRemoteVideo && !hasLocalVideo) ||
+          (showLocalMain && !hasRemoteVideo) ||
+          (!showRemoteVideo && !showLocalMain)) && (
+          <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-white/60">
+            <LucideVideoOff className="h-7 w-7" />
+          </div>
+        )}
       </div>
 
-      {/* Overlay com informações e controles */}
+      {showAttentionStatus && (
+        <div className="pointer-events-none absolute left-4 right-4 top-1/2 z-20 flex -translate-y-1/2 justify-center px-1">
+          <div className="max-w-sm rounded-lg border border-white/20 bg-black/70 px-4 py-3 text-center text-white shadow-2xl backdrop-blur-md">
+            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+              {showVoiceCall ? (
+                <LucidePhone className="h-5 w-5" />
+              ) : (
+                <LucideVideo className="h-5 w-5" />
+              )}
+            </div>
+            <p className="text-lg font-semibold leading-tight">{statusTitle}</p>
+            <p className="mt-1 text-sm leading-5 text-white/75">
+              {statusDescription}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showVolumeHint && (
+        <div className="pointer-events-none absolute bottom-28 left-4 right-4 z-30 flex justify-center px-1">
+          <div className="flex max-w-sm items-center gap-3 rounded-lg border border-white/20 bg-black/75 px-4 py-3 text-left text-white shadow-2xl backdrop-blur-md">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+              <LucideVolume2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold leading-tight">
+                Som baixo na chamada?
+              </p>
+              <p className="mt-1 text-xs leading-5 text-white/75">
+                Use os botões laterais do celular para aumentar o volume da
+                chamada.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white z-25">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -316,16 +382,8 @@ export function FullscreenVideo({
         </div>
       </div>
 
-      {/* Indicador de conexão */}
-      {callState !== "connected" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none z-5">
-          <div className="absolute text-center text-white top-[30%] left-[50%] -translate-x-1/2 -translate-y-1/2">
-            <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full mx-auto mb-2" />
-            <p className="text-medium">
-              {role === "visitor" ? "Chamando..." : "Aguardando atendimento..."}
-            </p>
-          </div>
-        </div>
+      {!isConnected && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-5" />
       )}
     </div>
   );

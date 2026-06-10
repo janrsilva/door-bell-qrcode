@@ -5,6 +5,7 @@ import {
   type WebPushSubscription,
 } from "@/lib/services/subscription-service";
 import { getAuthSession } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -26,10 +27,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const sessionUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, addressId: true },
+    });
+
+    if (!sessionUser || sessionUser.addressId !== session.user.addressId) {
+      return NextResponse.json(
+        {
+          error:
+            "Sessão desatualizada. Entre novamente para ativar notificações.",
+          code: "STALE_SESSION",
+        },
+        { status: 401 },
+      );
+    }
+
     // Salvar subscription no banco com limpeza automática
     const savedSubscription = await saveSubscription(
-      session.user.id,
-      session.user.addressId,
+      sessionUser.id,
+      sessionUser.addressId,
       subscription,
     );
 
