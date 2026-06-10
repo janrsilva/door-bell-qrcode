@@ -9,6 +9,7 @@ import { useCallingSound } from "@/hooks/useCallingSound";
 import { FullscreenVideo } from "@/components/FullscreenVideo";
 import { type Coordinates } from "@/lib/utils/latlong";
 import { useAddress } from "@/contexts/AddressContext";
+import { CallCameraIntro } from "@/components/VisitorGuidedFlow";
 import {
   MAX_DISTANCE,
   validateLocationFrontend,
@@ -47,7 +48,10 @@ interface AddressSnapshot {
 
 function isAnswerableVisit(
   visit: VisitSnapshot | null | undefined,
-): visit is VisitSnapshot & { uuid: string; webRtcOffer: { sdp: string; createdAt: string } } {
+): visit is VisitSnapshot & {
+  uuid: string;
+  webRtcOffer: { sdp: string; createdAt: string };
+} {
   return (
     Boolean(visit?.uuid) &&
     Boolean(visit?.webRtcOffer?.sdp) &&
@@ -69,12 +73,16 @@ function findLatestAnswerableVisit(
     .map(([visitId, visit]) => ({ ...visit, uuid: visit.uuid || visitId }))
     .filter(isAnswerableVisit);
 
-  return answerableVisits.sort((a, b) => {
-    const timeA = Date.parse(a.webRtcOffer?.createdAt || a.createdAt || "");
-    const timeB = Date.parse(b.webRtcOffer?.createdAt || b.createdAt || "");
-    return (Number.isFinite(timeB) ? timeB : 0) -
-      (Number.isFinite(timeA) ? timeA : 0);
-  })[0] ?? null;
+  return (
+    answerableVisits.sort((a, b) => {
+      const timeA = Date.parse(a.webRtcOffer?.createdAt || a.createdAt || "");
+      const timeB = Date.parse(b.webRtcOffer?.createdAt || b.createdAt || "");
+      return (
+        (Number.isFinite(timeB) ? timeB : 0) -
+        (Number.isFinite(timeA) ? timeA : 0)
+      );
+    })[0] ?? null
+  );
 }
 
 function resolveResidentVisit(data: AddressSnapshot | null) {
@@ -89,7 +97,10 @@ function resolveResidentVisit(data: AddressSnapshot | null) {
     const requestedVisit = data.visits?.[requestedVisitId];
 
     if (isAnswerableVisit(requestedVisit)) {
-      return { ...requestedVisit, uuid: requestedVisit.uuid || requestedVisitId };
+      return {
+        ...requestedVisit,
+        uuid: requestedVisit.uuid || requestedVisitId,
+      };
     }
   }
 
@@ -242,6 +253,8 @@ export default function VoiceCallFirebase(props: Props) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
+  const [showCameraIntro, setShowCameraIntro] = useState(false);
+  const [hasSeenCameraIntro, setHasSeenCameraIntro] = useState(false);
 
   const [visitData, setVisitData] = useState<VisitSnapshot | null>(null);
   const { addressData } = useAddress();
@@ -665,7 +678,10 @@ export default function VoiceCallFirebase(props: Props) {
   );
 
   const postAnswer = useCallback(
-    async (answer: RTCSessionDescriptionInit, residentVideoEnabled: boolean) => {
+    async (
+      answer: RTCSessionDescriptionInit,
+      residentVideoEnabled: boolean,
+    ) => {
       const id = ensureVisitId();
       try {
         setIsBusy(true);
@@ -708,6 +724,10 @@ export default function VoiceCallFirebase(props: Props) {
       throw new Error("visitId não definido");
     }
 
+    setShowCameraIntro(false);
+    setHasSeenCameraIntro(true);
+    setError(null);
+
     // SEMPRE solicitar localização do navegador ao clicar em CHAMADA
     let currentCoords: Coordinates | null = null;
     if (onRequestLocation) {
@@ -745,7 +765,6 @@ export default function VoiceCallFirebase(props: Props) {
 
     try {
       setStatusMessage(null);
-      setError(null);
       setStatusMessage("Preparando chamada...");
       setCallState("calling");
       reset();
@@ -799,86 +818,105 @@ export default function VoiceCallFirebase(props: Props) {
     onCallStart,
   ]);
 
-  const handleAcceptCall = useCallback(async (withVideo: boolean) => {
-    if (role !== "resident") return;
-    if (!incomingOffer) {
-      setError("Offer ainda não disponível");
+  const handleVisitorCallClick = useCallback(() => {
+    if (role !== "visitor") return;
+
+    if (hasSeenCameraIntro) {
+      void handleStartCall();
       return;
     }
 
-    try {
-      setStatusMessage(null);
-      setIsBusy(true);
-      setStatusMessage("Aceitando chamada...");
+    setShowCameraIntro(true);
+  }, [handleStartCall, hasSeenCameraIntro, role]);
 
-      appliedAnswerRef.current = null;
-      endedProcessedRef.current = false;
-      activeVisitIdRef.current = visitData?.uuid ?? null;
-
-      await ensureLocalStream({ withVideo });
-      const answer = await acceptOffer(incomingOffer, {
-        receiveAudio: true,
-        receiveVideo: true,
-        withLocalVideo: withVideo,
-      });
-
-      const pendingCandidates = [...pendingIceCandidatesRef.current];
-      pendingIceCandidatesRef.current = [];
-      await Promise.all(
-        pendingCandidates.map((candidate) =>
-          applyIceCandidate(candidate).catch((error) => {
-            console.error("❌ Erro ao aplicar ICE candidate pendente:", error);
-          }),
-        ),
-      );
-
-      await Promise.all(
-        Object.entries(visitData?.iceCandidates ?? {}).map(([key, payload]) => {
-          if (processedCandidatesRef.current.has(key)) {
-            return Promise.resolve();
-          }
-
-          processedCandidatesRef.current.add(key);
-
-          if (payload.from === role || !payload.candidate) {
-            return Promise.resolve();
-          }
-
-          return applyIceCandidate({
-            candidate: payload.candidate,
-            sdpMLineIndex: payload.sdpMLineIndex ?? undefined,
-            sdpMid: payload.sdpMid ?? undefined,
-          }).catch((error) => {
-            console.error("❌ Erro ao aplicar ICE candidate atual:", error);
-          });
-        }),
-      );
-
-      const sent = await postAnswer(answer, withVideo);
-
-      if (sent) {
-        setCallState("connected");
-        setStatusMessage("Chamada conectada");
+  const handleAcceptCall = useCallback(
+    async (withVideo: boolean) => {
+      if (role !== "resident") return;
+      if (!incomingOffer) {
+        setError("Offer ainda não disponível");
+        return;
       }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Erro ao aceitar chamada";
-      setError(message);
-      setStatusMessage(`❌ ${message}`);
-    } finally {
-      setIsBusy(false);
-    }
-  }, [
-    role,
-    incomingOffer,
-    ensureLocalStream,
-    acceptOffer,
-    applyIceCandidate,
-    postAnswer,
-    setError,
-    visitData?.iceCandidates,
-    visitData?.uuid,
-  ]);
+
+      try {
+        setStatusMessage(null);
+        setIsBusy(true);
+        setStatusMessage("Aceitando chamada...");
+
+        appliedAnswerRef.current = null;
+        endedProcessedRef.current = false;
+        activeVisitIdRef.current = visitData?.uuid ?? null;
+
+        await ensureLocalStream({ withVideo });
+        const answer = await acceptOffer(incomingOffer, {
+          receiveAudio: true,
+          receiveVideo: true,
+          withLocalVideo: withVideo,
+        });
+
+        const pendingCandidates = [...pendingIceCandidatesRef.current];
+        pendingIceCandidatesRef.current = [];
+        await Promise.all(
+          pendingCandidates.map((candidate) =>
+            applyIceCandidate(candidate).catch((error) => {
+              console.error(
+                "❌ Erro ao aplicar ICE candidate pendente:",
+                error,
+              );
+            }),
+          ),
+        );
+
+        await Promise.all(
+          Object.entries(visitData?.iceCandidates ?? {}).map(
+            ([key, payload]) => {
+              if (processedCandidatesRef.current.has(key)) {
+                return Promise.resolve();
+              }
+
+              processedCandidatesRef.current.add(key);
+
+              if (payload.from === role || !payload.candidate) {
+                return Promise.resolve();
+              }
+
+              return applyIceCandidate({
+                candidate: payload.candidate,
+                sdpMLineIndex: payload.sdpMLineIndex ?? undefined,
+                sdpMid: payload.sdpMid ?? undefined,
+              }).catch((error) => {
+                console.error("❌ Erro ao aplicar ICE candidate atual:", error);
+              });
+            },
+          ),
+        );
+
+        const sent = await postAnswer(answer, withVideo);
+
+        if (sent) {
+          setCallState("connected");
+          setStatusMessage("Chamada conectada");
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Erro ao aceitar chamada";
+        setError(message);
+        setStatusMessage(`❌ ${message}`);
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [
+      role,
+      incomingOffer,
+      ensureLocalStream,
+      acceptOffer,
+      applyIceCandidate,
+      postAnswer,
+      setError,
+      visitData?.iceCandidates,
+      visitData?.uuid,
+    ],
+  );
 
   useEffect(() => {
     if (role !== "resident" || !incomingOffer || !visitData?.uuid) return;
@@ -980,6 +1018,14 @@ export default function VoiceCallFirebase(props: Props) {
 
   return (
     <div className="relative">
+      {role === "visitor" && (
+        <CallCameraIntro
+          open={showCameraIntro}
+          isStarting={isBusy || callState === "calling"}
+          onCancel={() => setShowCameraIntro(false)}
+          onContinue={() => void handleStartCall()}
+        />
+      )}
       {showFullscreenVideo ? (
         <FullscreenVideo
           localStream={localStream}
@@ -1001,7 +1047,7 @@ export default function VoiceCallFirebase(props: Props) {
             <Button
               size="lg"
               className="h-14 w-full text-lg"
-              onClick={handleStartCall}
+              onClick={handleVisitorCallClick}
               disabled={
                 !callAllowed ||
                 isBusy ||

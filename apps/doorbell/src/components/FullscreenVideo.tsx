@@ -65,7 +65,8 @@ export function FullscreenVideo({
     remoteVideoAvailable &&
     Boolean(remoteStream) &&
     hasRemoteVideo;
-  const showLocalMain = !showRemoteVideo && Boolean(localStream) && hasLocalVideo;
+  const showLocalMain =
+    !showRemoteVideo && Boolean(localStream) && hasLocalVideo;
   const showVoiceCall = isConnected && !showRemoteVideo;
   const showVideoSurface = showRemoteVideo || showLocalMain;
   const showAttentionStatus = showVideoSurface && !showRemoteVideo;
@@ -183,208 +184,216 @@ export function FullscreenVideo({
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-zinc-950 overflow-hidden z-50">
-      {addressData && (
-        <div className="absolute top-2 left-2 right-2 z-30">
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white">
-            <h1>
-              <AddressBlock addressData={addressData as AddressData} />
-            </h1>
-          </div>
-        </div>
-      )}
-
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1f2937_0,#09090b_48%,#000_100%)]" />
-
-      {showRemoteVideo && (
-        <div className="absolute inset-0 w-full h-full">
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ backgroundColor: "black" }}
-          />
-        </div>
-      )}
-
-      {showLocalMain && (
-        <div className="absolute inset-0 w-full h-full">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
-            style={{ backgroundColor: "black" }}
-          />
-        </div>
-      )}
-
-      {!showRemoteVideo && !showLocalMain && (
-        <div className="absolute inset-0 flex items-center justify-center px-6 text-white">
-          <div className="w-full max-w-sm text-center">
-            <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
-              {showVoiceCall ? (
-                <LucidePhone className="h-11 w-11 text-white" />
-              ) : (
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              )}
-            </div>
-            <p className="text-2xl font-semibold">{statusTitle}</p>
-            <p className="mt-3 text-sm leading-6 text-white/70">
-              {statusDescription}
-            </p>
-            <div className="mt-5 inline-flex items-center rounded-full border border-white/15 bg-black/30 px-4 py-2 text-xs text-white/75">
-              {connectionState === "connected"
-                ? "Áudio conectado"
-                : "Negociando conexão segura"}
+    <div className="fixed inset-0 z-50 overflow-hidden bg-white md:flex md:items-center md:justify-center">
+      <div className="relative h-full w-full overflow-hidden bg-zinc-950 md:aspect-[9/16] md:h-[100dvh] md:w-auto md:max-h-[900px] md:shadow-2xl">
+        {addressData && (
+          <div className="absolute top-2 left-2 right-2 z-30">
+            <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3 text-white">
+              <h1>
+                <AddressBlock addressData={addressData as AddressData} />
+              </h1>
             </div>
           </div>
-        </div>
-      )}
-
-      <div className="absolute bottom-4 left-4 w-20 h-36 bg-black rounded-lg overflow-hidden shadow-lg border-2 border-white/20 z-15">
-        {showRemoteVideo && localStream && hasLocalVideo && (
-          <video
-            ref={localVideoCornerRef}
-            autoPlay
-            muted
-            playsInline
-            className="w-full h-full object-cover scale-x-[-1]"
-          />
         )}
 
-        {showLocalMain && remoteStream && hasRemoteVideo && (
-          <video
-            ref={remoteVideoCornerRef}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
-        )}
-        {((showRemoteVideo && !hasLocalVideo) ||
-          (showLocalMain && !hasRemoteVideo) ||
-          (!showRemoteVideo && !showLocalMain)) && (
-          <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-white/60">
-            <LucideVideoOff className="h-7 w-7" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#1f2937_0,#09090b_48%,#000_100%)]" />
+
+        {showRemoteVideo && (
+          <div className="absolute inset-0 w-full h-full">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ backgroundColor: "black" }}
+            />
           </div>
         )}
-      </div>
 
-      {showAttentionStatus && (
-        <div className="pointer-events-none absolute left-4 right-4 top-1/2 z-20 flex -translate-y-1/2 justify-center px-1">
-          <div className="max-w-sm rounded-lg border border-white/20 bg-black/70 px-4 py-3 text-center text-white shadow-2xl backdrop-blur-md">
-            <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
-              {showVoiceCall ? (
-                <LucidePhone className="h-5 w-5" />
-              ) : (
-                <LucideVideo className="h-5 w-5" />
-              )}
-            </div>
-            <p className="text-lg font-semibold leading-tight">{statusTitle}</p>
-            <p className="mt-1 text-sm leading-5 text-white/75">
-              {statusDescription}
-            </p>
+        {showLocalMain && (
+          <div className="absolute inset-0 w-full h-full">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+              style={{ backgroundColor: "black" }}
+            />
           </div>
-        </div>
-      )}
+        )}
 
-      {showVolumeHint && (
-        <div className="pointer-events-none absolute bottom-28 left-4 right-4 z-30 flex justify-center px-1">
-          <div className="flex max-w-sm items-center gap-3 rounded-lg border border-white/20 bg-black/75 px-4 py-3 text-left text-white shadow-2xl backdrop-blur-md">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <LucideVolume2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold leading-tight">
-                Som baixo na chamada?
+        {!showRemoteVideo && !showLocalMain && (
+          <div className="absolute inset-0 flex items-center justify-center px-6 text-white">
+            <div className="w-full max-w-sm text-center">
+              <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
+                {showVoiceCall ? (
+                  <LucidePhone className="h-11 w-11 text-white" />
+                ) : (
+                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                )}
+              </div>
+              <p className="text-2xl font-semibold">{statusTitle}</p>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                {statusDescription}
               </p>
-              <p className="mt-1 text-xs leading-5 text-white/75">
-                Use os botões laterais do celular para aumentar o volume da
-                chamada.
+              <div className="mt-5 inline-flex items-center rounded-full border border-white/15 bg-black/30 px-4 py-2 text-xs text-white/75">
+                {connectionState === "connected"
+                  ? "Áudio conectado"
+                  : "Negociando conexão segura"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="absolute bottom-4 left-4 w-20 h-36 bg-black rounded-lg overflow-hidden shadow-lg border-2 border-white/20 z-15">
+          {showRemoteVideo && localStream && hasLocalVideo && (
+            <video
+              ref={localVideoCornerRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover scale-x-[-1]"
+            />
+          )}
+
+          {showLocalMain && remoteStream && hasRemoteVideo && (
+            <video
+              ref={remoteVideoCornerRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          )}
+          {((showRemoteVideo && !hasLocalVideo) ||
+            (showLocalMain && !hasRemoteVideo) ||
+            (!showRemoteVideo && !showLocalMain)) && (
+            <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-white/60">
+              <LucideVideoOff className="h-7 w-7" />
+            </div>
+          )}
+        </div>
+
+        {showAttentionStatus && (
+          <div className="pointer-events-none absolute left-4 right-4 top-1/2 z-20 flex -translate-y-1/2 justify-center px-1">
+            <div className="max-w-sm rounded-lg border border-white/20 bg-black/70 px-4 py-3 text-center text-white shadow-2xl backdrop-blur-md">
+              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+                {showVoiceCall ? (
+                  <LucidePhone className="h-5 w-5" />
+                ) : (
+                  <LucideVideo className="h-5 w-5" />
+                )}
+              </div>
+              <p className="text-lg font-semibold leading-tight">
+                {statusTitle}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-white/75">
+                {statusDescription}
               </p>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white z-25">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            {isMuted && (
-              <>
-                <div
-                  className={`w-2 h-2 rounded-full ${isMuted ? "bg-red-500" : "bg-green-500"}`}
-                />
-                <span className="text-xs">{isMuted ? "Mudo" : ""}</span>
-              </>
-            )}
+        {showVolumeHint && (
+          <div className="pointer-events-none absolute bottom-28 left-4 right-4 z-30 flex justify-center px-1">
+            <div className="flex max-w-sm items-center gap-3 rounded-lg border border-white/20 bg-black/75 px-4 py-3 text-left text-white shadow-2xl backdrop-blur-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+                <LucideVolume2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-tight">
+                  Som baixo na chamada?
+                </p>
+                <p className="mt-1 text-xs leading-5 text-white/75">
+                  Use os botões laterais do celular para aumentar o volume da
+                  chamada.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            {!localVideoEnabled && (
-              <>
-                <div className={`w-2 h-2 rounded-full bg-red-500`} />
+        )}
 
-                <span className="text-xs">
-                  {localVideoEnabled ? "" : "Sem câmera"}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 z-50">
-          {/* Controles de áudio e vídeo */}
+        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white z-25">
           <div className="flex items-center gap-2">
-            {onToggleMute && (
-              <CircleButton
-                className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
-                onClick={onToggleMute}
-                ariaLabel={isMuted ? "Ativar microfone" : "Desativar microfone"}
-              >
-                {isMuted ? (
-                  <LucideMicOff className="text-white" />
-                ) : (
-                  <LucideMic className="text-white" />
-                )}
-              </CircleButton>
-            )}
+            <div className="flex items-center gap-1">
+              {isMuted && (
+                <>
+                  <div
+                    className={`w-2 h-2 rounded-full ${isMuted ? "bg-red-500" : "bg-green-500"}`}
+                  />
+                  <span className="text-xs">{isMuted ? "Mudo" : ""}</span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {!localVideoEnabled && (
+                <>
+                  <div className={`w-2 h-2 rounded-full bg-red-500`} />
 
-            {onToggleVideo && (
-              <CircleButton
-                className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
-                onClick={onToggleVideo}
-                ariaLabel={localVideoEnabled ? "Desativar vídeo" : "Ativar vídeo"}
-              >
-                {localVideoEnabled ? (
-                  <LucideVideo className="text-white" />
-                ) : (
-                  <LucideVideoOff className="text-white" />
-                )}
-              </CircleButton>
-            )}
+                  <span className="text-xs">
+                    {localVideoEnabled ? "" : "Sem câmera"}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
 
-            {/* Botão de encerrar/cancelar - muda baseado no estado */}
-            {onEndCall && (
-              <CircleButton
-                className="bg-red-600 hover:bg-red-700 border border-red-400/50 shadow-lg"
-                onClick={onEndCall}
-                ariaLabel="Encerrar chamada"
-              >
-                <LucideX
-                  className="p-2 w-10 h-10 text-white"
-                  aria-label="Encerrar chamada"
-                />
-              </CircleButton>
-            )}
+          <div className="flex items-center gap-2 z-50">
+            {/* Controles de áudio e vídeo */}
+            <div className="flex items-center gap-2">
+              {onToggleMute && (
+                <CircleButton
+                  className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
+                  onClick={onToggleMute}
+                  ariaLabel={
+                    isMuted ? "Ativar microfone" : "Desativar microfone"
+                  }
+                >
+                  {isMuted ? (
+                    <LucideMicOff className="text-white" />
+                  ) : (
+                    <LucideMic className="text-white" />
+                  )}
+                </CircleButton>
+              )}
+
+              {onToggleVideo && (
+                <CircleButton
+                  className="bg-black/80 hover:bg-black/90 transition-colors border border-white/30 shadow-lg"
+                  onClick={onToggleVideo}
+                  ariaLabel={
+                    localVideoEnabled ? "Desativar vídeo" : "Ativar vídeo"
+                  }
+                >
+                  {localVideoEnabled ? (
+                    <LucideVideo className="text-white" />
+                  ) : (
+                    <LucideVideoOff className="text-white" />
+                  )}
+                </CircleButton>
+              )}
+
+              {/* Botão de encerrar/cancelar - muda baseado no estado */}
+              {onEndCall && (
+                <CircleButton
+                  className="bg-red-600 hover:bg-red-700 border border-red-400/50 shadow-lg"
+                  onClick={onEndCall}
+                  ariaLabel="Encerrar chamada"
+                >
+                  <LucideX
+                    className="p-2 w-10 h-10 text-white"
+                    aria-label="Encerrar chamada"
+                  />
+                </CircleButton>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {!isConnected && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-5" />
-      )}
+        {!isConnected && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-5" />
+        )}
+      </div>
     </div>
   );
 }

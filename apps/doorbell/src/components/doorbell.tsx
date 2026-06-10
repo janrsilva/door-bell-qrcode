@@ -15,6 +15,7 @@ import { isVisitExpired } from "@/lib/constants";
 import AddressBlock from "@/components/AdressBlock";
 import { LucideAlertTriangle, LucideMapPin } from "lucide-react";
 import AppVersion from "@/components/AppVersion";
+import { VisitorGuidedFlow } from "@/components/VisitorGuidedFlow";
 
 type Props = {
   visit: {
@@ -54,6 +55,7 @@ export default function DoorbellPageClient({ visit }: Props) {
     visit.address.latitude && visit.address.longitude
       ? { lat: visit.address.latitude, lon: visit.address.longitude }
       : null;
+  const isExpiredVisit = isVisitExpired(visit.createdAt);
 
   // Verificar e obter localização automaticamente se já foi permitida
   useEffect(() => {
@@ -116,12 +118,15 @@ export default function DoorbellPageClient({ visit }: Props) {
     }
 
     try {
+      setLocationPermissionDenied(false);
+
       // Verificar se já foi negada anteriormente
       if ("permissions" in navigator) {
         const permission = await navigator.permissions.query({
           name: "geolocation",
         });
         if (permission.state === "denied") {
+          setLocationPermissionDenied(true);
           return { success: false, error: "permission_denied" };
         }
       }
@@ -162,6 +167,7 @@ export default function DoorbellPageClient({ visit }: Props) {
       let errorMessage = "Erro ao obter localização";
 
       if (error.code === error.PERMISSION_DENIED) {
+        setLocationPermissionDenied(true);
         return { success: false, error: "permission_denied" };
       } else if (error.code === error.TIMEOUT) {
         errorMessage =
@@ -206,6 +212,16 @@ export default function DoorbellPageClient({ visit }: Props) {
 
   return (
     <main className="min-h-dvh flex items-center justify-center md:p-4">
+      <VisitorGuidedFlow
+        hasLocation={Boolean(visitorCoords)}
+        needsLocation={Boolean(addressCoords) && !isExpiredVisit}
+        isLocationBlocked={locationPermissionDenied}
+        onRequestLocation={requestLocationOnDemand}
+        onShowLocationHelp={() => {
+          const instructions = getSimpleLocationInstructions();
+          alert(instructions);
+        }}
+      />
       <Card className="max-w-md w-full m-0 p-4 space-y-4 border-none shadow-none md:shadow-md md:rounded-lg md:border">
         <h1 className="text-2xl text-center font-semibold">
           CAMPAINHA ELETRÔNICA
@@ -394,7 +410,7 @@ export default function DoorbellPageClient({ visit }: Props) {
           startVisitUuid={visit.uuid}
           visitorCoords={visitorCoords}
           distance={distance}
-          disabled={isVisitExpired(visit.createdAt)}
+          disabled={isExpiredVisit}
           onCallStart={handleCallStart}
           onRequestLocation={requestLocationOnDemand}
         />
