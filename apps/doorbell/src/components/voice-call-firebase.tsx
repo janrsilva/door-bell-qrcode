@@ -803,9 +803,7 @@ export default function VoiceCallFirebase(props: Props) {
       setIsBusy(true);
       setStatusMessage("Aceitando chamada...");
 
-      processedCandidatesRef.current.clear();
       appliedAnswerRef.current = null;
-      pendingIceCandidatesRef.current = [];
       endedProcessedRef.current = false;
       activeVisitIdRef.current = visitData?.uuid ?? null;
 
@@ -815,6 +813,39 @@ export default function VoiceCallFirebase(props: Props) {
         receiveVideo: true,
         withLocalVideo: withVideo,
       });
+
+      const pendingCandidates = [...pendingIceCandidatesRef.current];
+      pendingIceCandidatesRef.current = [];
+      await Promise.all(
+        pendingCandidates.map((candidate) =>
+          applyIceCandidate(candidate).catch((error) => {
+            console.error("❌ Erro ao aplicar ICE candidate pendente:", error);
+          }),
+        ),
+      );
+
+      await Promise.all(
+        Object.entries(visitData?.iceCandidates ?? {}).map(([key, payload]) => {
+          if (processedCandidatesRef.current.has(key)) {
+            return Promise.resolve();
+          }
+
+          processedCandidatesRef.current.add(key);
+
+          if (payload.from === role || !payload.candidate) {
+            return Promise.resolve();
+          }
+
+          return applyIceCandidate({
+            candidate: payload.candidate,
+            sdpMLineIndex: payload.sdpMLineIndex ?? undefined,
+            sdpMid: payload.sdpMid ?? undefined,
+          }).catch((error) => {
+            console.error("❌ Erro ao aplicar ICE candidate atual:", error);
+          });
+        }),
+      );
+
       const sent = await postAnswer(answer);
 
       if (sent) {
@@ -834,8 +865,10 @@ export default function VoiceCallFirebase(props: Props) {
     incomingOffer,
     ensureLocalStream,
     acceptOffer,
+    applyIceCandidate,
     postAnswer,
     setError,
+    visitData?.iceCandidates,
     visitData?.uuid,
   ]);
 
