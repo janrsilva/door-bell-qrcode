@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 import { getActiveSubscriptions } from "@/lib/services/subscription-service";
-
-// Configurar VAPID keys
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY!;
-
-webpush.setVapidDetails(
-  "mailto:your-email@domain.com",
-  vapidPublicKey,
-  vapidPrivateKey,
-);
+import { configureWebPush } from "@/lib/services/push-notification";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +13,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing visitId, signal, or targetType" },
         { status: 400 },
+      );
+    }
+
+    if (!configureWebPush()) {
+      return NextResponse.json(
+        { error: "VAPID keys are not configured" },
+        { status: 503 },
       );
     }
 

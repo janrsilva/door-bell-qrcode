@@ -9,25 +9,10 @@ import {
   isValidCoordinates,
   type Coordinates,
 } from "@/lib/utils/latlong";
+import { configureWebPush } from "@/lib/services/push-notification";
 import webpush from "web-push";
 
 export const runtime = "nodejs";
-
-// Configurar VAPID keys
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-
-if (!vapidPublicKey || !vapidPrivateKey) {
-  throw new Error(
-    "VAPID keys não configuradas! Configure NEXT_PUBLIC_VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY no .env.local",
-  );
-}
-
-webpush.setVapidDetails(
-  "mailto:seu-email@exemplo.com",
-  vapidPublicKey,
-  vapidPrivateKey,
-);
 
 // Subscriptions são gerenciadas pelo subscription-service
 
@@ -173,7 +158,7 @@ export async function POST(req: NextRequest) {
         targetAddressId || undefined,
       );
 
-      if (subscriptions.length > 0) {
+      if (subscriptions.length > 0 && configureWebPush()) {
         const payload = JSON.stringify({
           title: "📞 Chamada da campainha",
           body: "Toque para abrir. Use ATENDER para atender.",
