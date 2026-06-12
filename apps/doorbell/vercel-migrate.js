@@ -1,9 +1,13 @@
 const { spawnSync } = require("child_process");
 
-const shouldRun = process.env.VERCEL === "1" || process.env.RUN_MIGRATIONS_ON_BUILD === "1";
+const isProductionVercelBuild =
+  process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
+const shouldRun =
+  isProductionVercelBuild || process.env.RUN_MIGRATIONS_ON_BUILD === "1";
 
 if (!shouldRun) {
-  console.log("Skipping prisma migrate deploy outside Vercel build.");
+  const target = process.env.VERCEL_ENV ?? "local";
+  console.log(`Skipping prisma migrate deploy for ${target} build.`);
   process.exit(0);
 }
 

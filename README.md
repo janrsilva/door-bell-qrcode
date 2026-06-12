@@ -80,7 +80,9 @@ Quando a CLI perguntar:
 
 Esses valores tambem estao em `vercel.json`.
 
-Em deploys por push, o script `build` do app executa `prisma migrate deploy` antes do `next build` quando detecta `VERCEL=1`. Por isso `DATABASE_URL` precisa estar configurada no ambiente do deploy.
+Em deploys de producao por push, o script `build` do app executa `prisma migrate deploy` antes do `next build` quando detecta `VERCEL=1` e `VERCEL_ENV=production`. Por isso `DATABASE_URL` precisa estar configurada no ambiente de producao.
+
+Deploys Preview nao executam migrations por padrao. Para forcar migrations fora de producao, configure `RUN_MIGRATIONS_ON_BUILD=1` junto com `DATABASE_URL`.
 
 ### Sincronizar Variaveis
 
