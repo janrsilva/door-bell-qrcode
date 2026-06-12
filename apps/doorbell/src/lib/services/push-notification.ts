@@ -2,20 +2,36 @@ import webpush from "web-push";
 import { getActiveSubscriptions } from "@/lib/services/subscription-service";
 import { prisma } from "@/lib/db";
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+let vapidDetailsConfigured = false;
 
-if (!vapidPublicKey || !vapidPrivateKey) {
-  console.warn("VAPID keys are not configured. Web push notifications will fail.");
-} else {
-  webpush.setVapidDetails("mailto:your-email@domain.com", vapidPublicKey, vapidPrivateKey);
+export function configureWebPush() {
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.warn(
+      "VAPID keys are not configured. Web push notifications will fail.",
+    );
+    return false;
+  }
+
+  if (!vapidDetailsConfigured) {
+    webpush.setVapidDetails(
+      "mailto:your-email@domain.com",
+      vapidPublicKey,
+      vapidPrivateKey,
+    );
+    vapidDetailsConfigured = true;
+  }
+
+  return true;
 }
 
 export async function notifyResidentOfferAvailable(
   visitUuid: string,
-  addressId?: number
+  addressId?: number,
 ) {
-  if (!vapidPublicKey || !vapidPrivateKey) {
+  if (!configureWebPush()) {
     return { devicesNotified: 0, reason: "missing_vapid_keys" };
   }
 
@@ -63,17 +79,20 @@ export async function notifyResidentOfferAvailable(
               data: { isActive: false },
             });
           } catch (dbError) {
-            console.error("❌ Erro ao desativar subscription expirada:", dbError);
+            console.error(
+              "❌ Erro ao desativar subscription expirada:",
+              dbError,
+            );
           }
         }
 
         return false;
       }
-    })
+    }),
   );
 
   const devicesNotified = pushResults.filter(
-    (result) => result.status === "fulfilled" && result.value
+    (result) => result.status === "fulfilled" && result.value,
   ).length;
 
   return { devicesNotified };

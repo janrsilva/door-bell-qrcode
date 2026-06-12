@@ -33,7 +33,9 @@ pnpm build:doorbell
 
 O build executa `prisma generate` antes do `next build`, para funcionar igual no ambiente da Vercel.
 
-Na Vercel, o script `build` executa `prisma migrate deploy` antes do `next build`, aplicando migrations automaticamente quando houver deploy por push.
+Na Vercel, o script `build` executa `prisma migrate deploy` antes do `next build` em deploys de producao, aplicando migrations automaticamente quando houver deploy por push para `VERCEL_ENV=production`.
+
+Deploys Preview nao executam migrations por padrao. Para forcar migrations fora de producao, configure `RUN_MIGRATIONS_ON_BUILD=1` junto com `DATABASE_URL`.
 
 ## Vercel
 

@@ -9,7 +9,6 @@ import { useCallingSound } from "@/hooks/useCallingSound";
 import { FullscreenVideo } from "@/components/FullscreenVideo";
 import { type Coordinates } from "@/lib/utils/latlong";
 import { useAddress } from "@/contexts/AddressContext";
-import { CallCameraIntro } from "@/components/VisitorGuidedFlow";
 import {
   MAX_DISTANCE,
   validateLocationFrontend,
@@ -107,48 +106,6 @@ function resolveResidentVisit(data: AddressSnapshot | null) {
   return findLatestAnswerableVisit(data.visits);
 }
 
-async function captureVideoPreview(
-  stream: MediaStream,
-): Promise<string | null> {
-  const [videoTrack] = stream.getVideoTracks();
-  if (!videoTrack) return null;
-
-  const video = document.createElement("video");
-  video.srcObject = stream;
-  video.muted = true;
-  video.playsInline = true;
-
-  try {
-    await video.play();
-    await new Promise<void>((resolve) => {
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        resolve();
-        return;
-      }
-
-      video.onloadeddata = () => resolve();
-    });
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 160;
-    canvas.height = 160;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-
-    const size = Math.min(video.videoWidth, video.videoHeight);
-    const sx = Math.max((video.videoWidth - size) / 2, 0);
-    const sy = Math.max((video.videoHeight - size) / 2, 0);
-
-    context.drawImage(video, sx, sy, size, size, 0, 0, 160, 160);
-    return canvas.toDataURL("image/jpeg", 0.72);
-  } catch (error) {
-    console.warn("Não foi possível capturar preview do visitante", error);
-    return null;
-  } finally {
-    video.srcObject = null;
-  }
-}
-
 interface Props {
   role: "visitor" | "resident";
   startVisitUuid?: string;
@@ -195,6 +152,8 @@ export default function VoiceCallFirebase(props: Props) {
   const activeVisitIdRef = useRef<string | null>(null);
   const activeOfferRef = useRef<string | null>(null);
   const autoAnswerVisitRef = useRef<string | null>(null);
+  const isAcceptingCallRef = useRef(false);
+  const residentAnswerSentRef = useRef(false);
 
   const postIceCandidate = useCallback(
     async (visitId: string, candidate: RTCIceCandidate) => {
@@ -232,6 +191,7 @@ export default function VoiceCallFirebase(props: Props) {
     ensureLocalStream,
     toggleMute,
     toggleVideo,
+    switchCamera,
     createOffer,
     acceptOffer,
     applyAnswer,
@@ -253,8 +213,6 @@ export default function VoiceCallFirebase(props: Props) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isWaitingForAnswer, setIsWaitingForAnswer] = useState(false);
-  const [showCameraIntro, setShowCameraIntro] = useState(false);
-  const [hasSeenCameraIntro, setHasSeenCameraIntro] = useState(false);
 
   const [visitData, setVisitData] = useState<VisitSnapshot | null>(null);
   const { addressData } = useAddress();
@@ -283,6 +241,7 @@ export default function VoiceCallFirebase(props: Props) {
       endedProcessedRef.current = true;
       activeVisitIdRef.current = null;
       activeOfferRef.current = null;
+      residentAnswerSentRef.current = false;
 
       // Resetar WebRTC e estado da chamada
       reset();
@@ -400,9 +359,11 @@ export default function VoiceCallFirebase(props: Props) {
 
     const unsubscribe = onValue(onCallVisitRef, (snapshot) => {
       const data = (snapshot.val() ?? null) as VisitSnapshot | null;
+      const hasAppliedAnswer = Boolean(appliedAnswerRef.current);
       const hasActiveVisitorCall =
         activeVisitIdRef.current === startVisitUuid &&
         (isWaitingForAnswer ||
+          hasAppliedAnswer ||
           callState === "ringing" ||
           callState === "connected");
 
@@ -420,7 +381,8 @@ export default function VoiceCallFirebase(props: Props) {
       if (
         role === "visitor" &&
         callState === "calling" &&
-        !isWaitingForAnswer
+        !isWaitingForAnswer &&
+        !hasAppliedAnswer
       ) {
         return;
       }
@@ -598,15 +560,13 @@ export default function VoiceCallFirebase(props: Props) {
   useEffect(() => {
     if (connectionState === "connected" && callState !== "connected") {
       setCallState("connected");
+      setStatusMessage("Chamada conectada");
     }
 
-    if (
-      ["failed", "closed"].includes(connectionState) &&
-      callState === "connected"
-    ) {
-      void cleanupCall(true, "Chamada finalizada");
+    if (connectionState === "failed" && callState === "connected") {
+      setStatusMessage("Conexão instável. Tente encerrar e chamar novamente.");
     }
-  }, [connectionState, callState, cleanupCall]);
+  }, [connectionState, callState]);
 
   const ensureVisitId = useCallback((): string => {
     // Para visitor, usa startVisitUuid
@@ -724,8 +684,6 @@ export default function VoiceCallFirebase(props: Props) {
       throw new Error("visitId não definido");
     }
 
-    setShowCameraIntro(false);
-    setHasSeenCameraIntro(true);
     setError(null);
 
     // SEMPRE solicitar localização do navegador ao clicar em CHAMADA
@@ -765,7 +723,7 @@ export default function VoiceCallFirebase(props: Props) {
 
     try {
       setStatusMessage(null);
-      setStatusMessage("Preparando chamada...");
+      setStatusMessage("Preparando chamada de áudio...");
       setCallState("calling");
       reset();
 
@@ -777,19 +735,16 @@ export default function VoiceCallFirebase(props: Props) {
       activeVisitIdRef.current = startVisitUuid;
       activeOfferRef.current = null;
 
-      const stream = await ensureLocalStream({ withVideo: true });
-      const visitorPreviewDataUrl = await captureVideoPreview(stream);
+      await ensureLocalStream({ withVideo: false });
       const offer = await createOffer({
         receiveAudio: true,
         receiveVideo: true,
-        withLocalVideo: true,
+        withLocalVideo: false,
       });
 
-      const sent = await postOffer(offer, currentCoords, visitorPreviewDataUrl);
-      if (sent) {
-        // Aguardar um pouco para garantir que o Firebase foi atualizado
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      const sent = await postOffer(offer, currentCoords, null);
 
+      if (sent) {
         setIsWaitingForAnswer(true);
         setStatusMessage("Offer enviada. Aguardando answer do morador...");
         if (onCallStart) {
@@ -821,23 +776,20 @@ export default function VoiceCallFirebase(props: Props) {
   const handleVisitorCallClick = useCallback(() => {
     if (role !== "visitor") return;
 
-    if (hasSeenCameraIntro) {
-      void handleStartCall();
-      return;
-    }
-
-    setShowCameraIntro(true);
-  }, [handleStartCall, hasSeenCameraIntro, role]);
+    void handleStartCall();
+  }, [handleStartCall, role]);
 
   const handleAcceptCall = useCallback(
     async (withVideo: boolean) => {
       if (role !== "resident") return;
+      if (isAcceptingCallRef.current) return;
       if (!incomingOffer) {
         setError("Offer ainda não disponível");
         return;
       }
 
       try {
+        isAcceptingCallRef.current = true;
         setStatusMessage(null);
         setIsBusy(true);
         setStatusMessage("Aceitando chamada...");
@@ -893,6 +845,7 @@ export default function VoiceCallFirebase(props: Props) {
         const sent = await postAnswer(answer, withVideo);
 
         if (sent) {
+          residentAnswerSentRef.current = true;
           setCallState("connected");
           setStatusMessage("Chamada conectada");
         }
@@ -902,6 +855,7 @@ export default function VoiceCallFirebase(props: Props) {
         setError(message);
         setStatusMessage(`❌ ${message}`);
       } finally {
+        isAcceptingCallRef.current = false;
         setIsBusy(false);
       }
     },
@@ -980,20 +934,39 @@ export default function VoiceCallFirebase(props: Props) {
   );
 
   const handleToggleVideo = useCallback(async () => {
-    const nextVideoEnabled = !localVideoEnabled;
+    try {
+      const nextVideoEnabled = await toggleVideo();
 
-    await toggleVideo();
-
-    if (role === "resident" && callState === "connected") {
-      await updateResidentMediaState(nextVideoEnabled);
+      if (
+        role === "resident" &&
+        (callState === "connected" || residentAnswerSentRef.current)
+      ) {
+        await updateResidentMediaState(nextVideoEnabled);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao alternar vídeo";
+      setError(message);
+      setStatusMessage(`❌ ${message}`);
     }
   }, [
     callState,
-    localVideoEnabled,
     role,
+    setError,
     toggleVideo,
     updateResidentMediaState,
   ]);
+
+  const handleSwitchCamera = useCallback(async () => {
+    try {
+      await switchCamera();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao trocar câmera";
+      setError(message);
+      setStatusMessage(`❌ ${message}`);
+    }
+  }, [setError, switchCamera]);
 
   const callAllowed =
     !disabled &&
@@ -1018,14 +991,6 @@ export default function VoiceCallFirebase(props: Props) {
 
   return (
     <div className="relative">
-      {role === "visitor" && (
-        <CallCameraIntro
-          open={showCameraIntro}
-          isStarting={isBusy || callState === "calling"}
-          onCancel={() => setShowCameraIntro(false)}
-          onContinue={() => void handleStartCall()}
-        />
-      )}
       {showFullscreenVideo ? (
         <FullscreenVideo
           localStream={localStream}
@@ -1039,6 +1004,7 @@ export default function VoiceCallFirebase(props: Props) {
           connectionState={connectionState}
           onToggleMute={toggleMute}
           onToggleVideo={handleToggleVideo}
+          onSwitchCamera={handleSwitchCamera}
           onEndCall={handleEndCall}
         />
       ) : (

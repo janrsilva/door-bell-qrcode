@@ -3,17 +3,21 @@ import { getDatabase } from "firebase-admin/database";
 import { getFirebaseAdminApp } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/db";
 
+type IceCandidatePayload = {
+  candidate?: string;
+  sdpMLineIndex?: number | null;
+  sdpMid?: string | null;
+  from?: string;
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ visitId: string }> },
 ) {
   try {
     const { visitId } = await params;
-    let body: {
-      candidate?: string;
-      sdpMLineIndex?: number | null;
-      sdpMid?: string | null;
-      from?: string;
+    let body: IceCandidatePayload & {
+      candidates?: IceCandidatePayload[];
     };
 
     try {
@@ -25,7 +29,15 @@ export async function POST(
       );
     }
 
-    if (!body.candidate) {
+    const candidates = Array.isArray(body.candidates)
+      ? body.candidates
+      : [body];
+
+    const validCandidates = candidates.filter((candidate) =>
+      Boolean(candidate.candidate),
+    );
+
+    if (validCandidates.length === 0) {
       return NextResponse.json(
         { error: "Candidate é obrigatório" },
         { status: 400 },
@@ -54,13 +66,13 @@ export async function POST(
     const addressVisitRef = addressRef.child(`visits/${visitId}`);
     const addressVisitCandidatesRef = addressVisitRef.child("iceCandidates");
 
-    const payload = {
-      candidate: body.candidate,
-      sdpMLineIndex: body.sdpMLineIndex ?? null,
-      sdpMid: body.sdpMid ?? null,
-      from: body.from ?? "unknown",
+    const payloads = validCandidates.map((candidate) => ({
+      candidate: candidate.candidate,
+      sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+      sdpMid: candidate.sdpMid ?? null,
+      from: candidate.from ?? body.from ?? "unknown",
       createdAt: now,
-    };
+    }));
 
     const [visitSnapshot, onCallVisitSnapshot] = await Promise.all([
       addressVisitRef.get(),
@@ -73,15 +85,21 @@ export async function POST(
       return NextResponse.json({ success: true, ignored: true });
     }
 
-    const writes = [addressVisitCandidatesRef.push(payload)];
+    const writes = payloads.map((payload) =>
+      addressVisitCandidatesRef.push(payload),
+    );
 
     if (onCallVisit?.uuid === visitId) {
-      writes.push(onCallVisitRef.child("iceCandidates").push(payload));
+      writes.push(
+        ...payloads.map((payload) =>
+          onCallVisitRef.child("iceCandidates").push(payload),
+        ),
+      );
     }
 
     await Promise.all(writes);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: payloads.length });
   } catch (error) {
     console.error("❌ [ICE_API] Erro ao salvar ICE candidate:", error);
     return NextResponse.json(

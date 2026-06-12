@@ -4,11 +4,11 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function getDatabaseUrl() {
+function getDatabaseUrl(): string | undefined {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
-    return databaseUrl;
+    return undefined;
   }
 
   try {
@@ -28,14 +28,18 @@ function getDatabaseUrl() {
   }
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    datasources: {
-      db: {
-        url: getDatabaseUrl(),
+const databaseUrl = getDatabaseUrl();
+const prismaOptions = databaseUrl
+  ? {
+      datasources: {
+        db: {
+          url: databaseUrl,
+        },
       },
-    },
-  });
+    }
+  : undefined;
+
+export const prisma =
+  globalForPrisma.prisma ?? new PrismaClient(prismaOptions);
 
 globalForPrisma.prisma = prisma;
