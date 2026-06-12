@@ -18,6 +18,8 @@ type EnsureLocalStreamOptions = {
   withVideo: boolean;
 };
 
+type LocalVideoFacingMode = "user" | "environment";
+
 type CreateOfferOptions = {
   receiveAudio?: boolean;
   receiveVideo?: boolean;
@@ -29,6 +31,57 @@ type CreateAnswerOptions = {
   receiveVideo?: boolean;
   withLocalVideo?: boolean;
 };
+
+function getVideoConstraints(
+  facingMode: LocalVideoFacingMode,
+  required = false,
+): MediaTrackConstraints {
+  return {
+    width: { ideal: 640 },
+    height: { ideal: 480 },
+    facingMode: required ? { exact: facingMode } : { ideal: facingMode },
+  };
+}
+
+function getFacingModeFromTrack(
+  track: MediaStreamTrack,
+): LocalVideoFacingMode | null {
+  const facingMode = track.getSettings().facingMode;
+
+  if (facingMode === "user" || facingMode === "environment") {
+    return facingMode;
+  }
+
+  return null;
+}
+
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop());
+}
+
+function shouldRetryCameraAfterStoppingCurrent(error: unknown) {
+  const errorName = error instanceof Error ? error.name : "";
+
+  return errorName === "NotReadableError" || errorName === "AbortError";
+}
+
+async function getVideoTrackForFacingMode(
+  facingMode: LocalVideoFacingMode,
+  required = false,
+) {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: getVideoConstraints(facingMode, required),
+    audio: false,
+  });
+  const [track] = stream.getVideoTracks();
+
+  if (!track) {
+    stopStream(stream);
+    throw new Error("Não foi possível acessar a câmera solicitada.");
+  }
+
+  return { stream, track };
+}
 
 export interface DoorbellWebRTCState {
   connectionState: ConnectionState;
@@ -48,8 +101,9 @@ export interface DoorbellWebRTCState {
 export interface DoorbellWebRTCControls {
   ensureLocalStream(options: EnsureLocalStreamOptions): Promise<MediaStream>;
   enableLocalVideo(): Promise<void>;
+  switchCamera(): Promise<void>;
   toggleMute(): void;
-  toggleVideo(): Promise<void>;
+  toggleVideo(): Promise<boolean>;
   createOffer(options?: CreateOfferOptions): Promise<RTCSessionDescriptionInit>;
   acceptOffer(
     offer: RTCSessionDescriptionInit,
@@ -70,6 +124,7 @@ export function useDoorbellWebRTC(
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const localVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const videoSenderRef = useRef<RTCRtpSender | null>(null);
+  const localVideoFacingModeRef = useRef<LocalVideoFacingMode>("user");
 
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("unset");
@@ -213,11 +268,7 @@ export function useDoorbellWebRTC(
     }
 
     const videoStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        facingMode: "user",
-      },
+      video: getVideoConstraints(localVideoFacingModeRef.current),
       audio: false,
     });
 
@@ -228,6 +279,8 @@ export function useDoorbellWebRTC(
 
     stream.addTrack(videoTrack);
     localVideoTrackRef.current = videoTrack;
+    localVideoFacingModeRef.current =
+      getFacingModeFromTrack(videoTrack) ?? localVideoFacingModeRef.current;
 
     const pc = peerRef.current;
     if (pc) {
@@ -273,11 +326,7 @@ export function useDoorbellWebRTC(
             autoGainControl: true,
           },
           video: withVideo
-            ? {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: "user",
-              }
+            ? getVideoConstraints(localVideoFacingModeRef.current)
             : false,
         });
 
@@ -288,6 +337,11 @@ export function useDoorbellWebRTC(
 
         const [videoTrack] = stream.getVideoTracks();
         localVideoTrackRef.current = videoTrack ?? null;
+        if (videoTrack) {
+          localVideoFacingModeRef.current =
+            getFacingModeFromTrack(videoTrack) ??
+            localVideoFacingModeRef.current;
+        }
         setLocalVideoEnabled(Boolean(videoTrack));
 
         return stream;
@@ -302,6 +356,121 @@ export function useDoorbellWebRTC(
     },
     [enableLocalVideo],
   );
+
+  const switchCamera = useCallback(async () => {
+    const stream = localStreamRef.current;
+    if (!stream || !localVideoEnabled) return;
+
+    const [currentTrack] = stream.getVideoTracks();
+    if (!currentTrack || currentTrack.readyState !== "live") return;
+
+    const pc = peerRef.current;
+    const sender =
+      videoSenderRef.current ??
+      pc?.getSenders().find((currentSender) => {
+        return currentSender.track?.kind === "video";
+      }) ??
+      null;
+    const nextFacingMode =
+      (getFacingModeFromTrack(currentTrack) ??
+        localVideoFacingModeRef.current) === "user"
+        ? "environment"
+        : "user";
+    let currentTrackStopped = false;
+    let nextTrack: MediaStreamTrack | null = null;
+    let nextVideoStream: MediaStream | null = null;
+
+    try {
+      try {
+        const nextVideo = await getVideoTrackForFacingMode(
+          nextFacingMode,
+          true,
+        );
+        nextTrack = nextVideo.track;
+        nextVideoStream = nextVideo.stream;
+      } catch (error) {
+        if (!shouldRetryCameraAfterStoppingCurrent(error)) {
+          throw error;
+        }
+
+        stream.removeTrack(currentTrack);
+        currentTrack.stop();
+        currentTrackStopped = true;
+
+        try {
+          const nextVideo = await getVideoTrackForFacingMode(
+            nextFacingMode,
+            true,
+          );
+          nextTrack = nextVideo.track;
+          nextVideoStream = nextVideo.stream;
+        } catch {
+          const nextVideo = await getVideoTrackForFacingMode(
+            nextFacingMode,
+            false,
+          );
+          nextTrack = nextVideo.track;
+          nextVideoStream = nextVideo.stream;
+        }
+      }
+
+      const selectedFacingMode = getFacingModeFromTrack(nextTrack);
+      if (
+        selectedFacingMode &&
+        selectedFacingMode !== nextFacingMode &&
+        !currentTrackStopped
+      ) {
+        nextTrack.stop();
+        nextVideoStream?.getTracks().forEach((track) => {
+          if (track !== nextTrack) track.stop();
+        });
+
+        stream.removeTrack(currentTrack);
+        currentTrack.stop();
+        currentTrackStopped = true;
+
+        const nextVideo = await getVideoTrackForFacingMode(
+          nextFacingMode,
+          false,
+        );
+        nextTrack = nextVideo.track;
+        nextVideoStream = nextVideo.stream;
+      }
+
+      if (!currentTrackStopped) {
+        stream.removeTrack(currentTrack);
+        currentTrack.stop();
+        currentTrackStopped = true;
+      }
+
+      if (sender) {
+        sender.setStreams(stream);
+        await sender.replaceTrack(nextTrack);
+        videoSenderRef.current = sender;
+      }
+
+      stream.addTrack(nextTrack);
+      localVideoTrackRef.current = nextTrack;
+      localVideoFacingModeRef.current =
+        getFacingModeFromTrack(nextTrack) ?? nextFacingMode;
+      setLocalStream(stream);
+    } catch (error) {
+      nextTrack?.stop();
+
+      if (currentTrackStopped) {
+        await sender?.replaceTrack(null).catch(() => {});
+        localVideoTrackRef.current = null;
+        setLocalVideoEnabled(false);
+        setLocalStream(stream);
+      }
+
+      throw error;
+    } finally {
+      nextVideoStream?.getTracks().forEach((track) => {
+        if (track !== nextTrack) track.stop();
+      });
+    }
+  }, [localVideoEnabled]);
 
   const attachLocalTracks = useCallback(
     (pc: RTCPeerConnection, stream: MediaStream) => {
@@ -325,16 +494,20 @@ export function useDoorbellWebRTC(
 
   const toggleVideo = useCallback(async () => {
     const stream = localStreamRef.current;
-    if (!stream) return;
+    if (!stream) return false;
 
     const [track] = stream.getVideoTracks();
     if (!track) {
       await enableLocalVideo();
-      return;
+      return (
+        localStreamRef.current?.getVideoTracks().some((track) => track.enabled) ??
+        false
+      );
     }
 
     track.enabled = !track.enabled;
     setLocalVideoEnabled(track.enabled);
+    return track.enabled;
   }, [enableLocalVideo]);
 
   const createOffer = useCallback(
@@ -347,13 +520,27 @@ export function useDoorbellWebRTC(
       const pc = createPeerConnection();
       attachLocalTracks(pc, stream);
 
-      const sender = pc
-        .getSenders()
-        .find((currentSender) => currentSender.track?.kind === "video");
+      let sender =
+        pc
+          .getSenders()
+          .find((currentSender) => currentSender.track?.kind === "video") ??
+        null;
+
+      if (!sender && receiveVideo) {
+        sender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
+      }
 
       if (sender) {
         sender.setStreams(stream);
         videoSenderRef.current = sender;
+      }
+
+      const audioSender = pc
+        .getSenders()
+        .find((currentSender) => currentSender.track?.kind === "audio");
+
+      if (audioSender) {
+        audioSender.setStreams(stream);
       }
 
       const offer = await pc.createOffer({
@@ -508,6 +695,7 @@ export function useDoorbellWebRTC(
     remoteStreamRef.current = null;
     localVideoTrackRef.current = null;
     videoSenderRef.current = null;
+    localVideoFacingModeRef.current = "user";
 
     setConnectionState("unset");
     setIceState("unset");
@@ -568,6 +756,7 @@ export function useDoorbellWebRTC(
     () => ({
       ensureLocalStream,
       enableLocalVideo,
+      switchCamera,
       toggleMute,
       toggleVideo,
       createOffer,
@@ -584,6 +773,7 @@ export function useDoorbellWebRTC(
       createOffer,
       enableLocalVideo,
       ensureLocalStream,
+      switchCamera,
       sendIceCandidate,
       applyIceCandidate,
       reset,
